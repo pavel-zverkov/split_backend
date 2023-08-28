@@ -16,8 +16,8 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     mobile_number = Column(String, unique=True)
-    first_name = Column(String)
-    last_name = Column(String)
+    first_name = Column(String, nullable=False)
+    last_name = Column(String, nullable=True)
     birthdate = Column(Date, nullable=True)
     gender = Column(Enum(Gender), nullable=True)
     qualify = Column(Enum(Qualify), nullable=True)

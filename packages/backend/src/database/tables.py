@@ -1,6 +1,5 @@
 from ..competition.competition_orm_model import Competition
 from ..event.event_orm_model import Event
-from ..relations.competition_event_relation_orm import CompetitionEventRelation
 from ..relations.user_competition_relation_orm import UserCompetitionRelation
 from ..relations.user_event_relation_orm import UserEventRelation
 from ..roles.user_competition_role_orm import UserCompetitionRole

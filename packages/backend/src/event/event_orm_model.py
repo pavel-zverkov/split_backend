@@ -1,11 +1,12 @@
 
 from sqlalchemy import (Column,
-                        Enum,
+                        Date,
+                        Enum, ForeignKey,
                         Integer,
                         String)
 
 from ..database import Base
-from ..enums.enum_status import Status
+from ..enums.enum_sport_kind import SportKind
 
 
 class Event(Base):
@@ -13,4 +14,6 @@ class Event(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
-    status = Column(Enum(Status), default=Status.PLANNED)
+    date = Column(Date)
+    sport_kind = Column(Enum(SportKind))
+    competition = Column(Integer, ForeignKey('competitions.id'), nullable=True)

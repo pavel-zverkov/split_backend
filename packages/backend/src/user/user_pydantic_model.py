@@ -12,10 +12,10 @@ class User(BaseModel):
     id: int
     mobile_number: str
     first_name: str
-    last_name: str
-    birthdate: datetime
-    gender: Gender
-    qualify: Qualify
+    last_name: str | None
+    birthdate: datetime | None
+    gender: Gender | None
+    qualify: Qualify | None
     is_active: bool
 
     workouts: list[Workout] = []
