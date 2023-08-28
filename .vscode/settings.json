@@ -1,0 +1,23 @@
+{
+    "python.envFile": "${workspaceFolder}/.env",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/mvp_dag_template"
+    ],
+    "editor.formatOnSave": true,
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.autopep8"
+    },
+    "python.formatting.provider": "none",
+    "python.terminal.launchArgs": [
+        "sys.path.append",
+        "${workspaceFolder}"
+    ],
+    "pylint.args": [
+        "disable",
+        "W0611"
+    ],
+    "flake8.args": [
+        "--ignore",
+        "F401"
+    ]
+}
