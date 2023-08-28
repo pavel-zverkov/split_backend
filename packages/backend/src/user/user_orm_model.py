@@ -24,3 +24,12 @@ class User(Base):
     is_active = Column(Boolean, default=True)
 
     workouts = relationship('Workout', back_populates='user')
+
+    def create_competition() -> None:
+        pass
+
+    def create_event() -> None:
+        pass
+
+    def create_workout() -> None:
+        pass
