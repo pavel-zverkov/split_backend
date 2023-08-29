@@ -1,12 +1,11 @@
 
-from sqlalchemy import (Column,
-                        Date,
-                        Enum, ForeignKey,
-                        Integer,
-                        String)
+from sqlalchemy import Column, Date, Enum, Integer, String
 
 from ..database import Base
 from ..enums.enum_sport_kind import SportKind
+from ..enums.enum_status import Status
+
+from sqlalchemy.orm import relationship
 
 
 class Event(Base):
@@ -14,6 +13,9 @@ class Event(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
-    date = Column(Date)
+    start_date = Column(Date)
+    end_date = Column(Date)
     sport_kind = Column(Enum(SportKind))
-    competition = Column(Integer, ForeignKey('competitions.id'), nullable=True)
+    status = Column(Enum(Status))
+
+    competitions = relationship('Competition', back_populates='competition')

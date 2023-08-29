@@ -1,12 +1,16 @@
+from datetime import datetime
 from pydantic import BaseModel
 
 from ..enums.enum_sport_kind import SportKind
-from ..enums.enum_status import Status
 
 
 class Competition(BaseModel):
 
     id: int
     name: str
+    date: datetime
+    class_list: list[str]
+    control_point_list: list[str]
     kind: SportKind
-    status: Status = Status.PLANNED
+    format: str
+    event: int | None

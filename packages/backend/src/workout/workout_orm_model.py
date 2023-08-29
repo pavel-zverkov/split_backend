@@ -19,7 +19,7 @@ class Workout(Base):
     date = Column(Date, nullable=False)
     sport_kind = Column(Enum(SportKind))
     user = Column(Integer, ForeignKey('users.id'), nullable=False)
-    event = Column(Integer, ForeignKey('events.id'), nullable=True)
+    competition = Column(Integer, ForeignKey('competitions.id'), nullable=True)
     fit_file = Column(String, nullable=True)
     gpx_file = Column(String, nullable=True)
     tcx_file = Column(String, nullable=True)

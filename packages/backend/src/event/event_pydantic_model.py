@@ -10,5 +10,7 @@ class Event(BaseModel):
 
     id: int
     name: str
-    date: datetime
+    start_date: datetime
+    end_date: datetime
     sport_kind: SportKind
+    status: Status

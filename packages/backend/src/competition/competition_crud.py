@@ -14,13 +14,21 @@ def create_competition(
     db: Session,
     name: str,
     date: datetime,
-    sport_kind: SportKind = SportKind.RUN,
+    class_list: list[str],
+    control_point_list: list[str],
+    kind: SportKind = SportKind.RUN,
+    format: str = '',
+    event: int | None = None
 ) -> None:
 
     db_competition = Competition(
+        name=name,
         date=date,
-        sport_kind=sport_kind,
-        name=name
+        class_list=class_list,
+        control_point_list=control_point_list,
+        kind=kind,
+        format=format,
+        event=event
     )
     db.add(db_competition)
     db.commit()
