@@ -1,7 +1,11 @@
-from sqlalchemy import (Column, Date,
-                        Enum, ForeignKey,
+from sqlalchemy import (ARRAY,
+                        Column,
+                        Date,
+                        Enum,
+                        ForeignKey,
                         Integer,
-                        String, ARRAY)
+                        String)
+from sqlalchemy.orm import relationship
 
 from ..database import Base
 from ..enums.enum_sport_kind import SportKind
@@ -18,3 +22,5 @@ class Competition(Base):
     kind = Column(Enum(SportKind), nullable=True)
     format = Column(String, nullable=True)
     event = Column(Integer, ForeignKey('events.id'), nullable=True)
+
+    parent_event = relationship('Event', back_populates='competitions')

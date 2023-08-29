@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from ..enums.enum_sport_kind import SportKind
 from sqlalchemy.orm import Session
 
+from ..enums.enum_sport_kind import SportKind
 from .user_event_relation_orm import UserEventRelation
 
 
@@ -20,9 +20,9 @@ def create_user_event_relation(
 ) -> None:
 
     db_user_event_relation = UserEventRelation(
-        user_id=user_id,
-        event_id=event_id,
-        role_id=role_id,
+        user=user_id,
+        event=event_id,
+        role=role_id,
     )
     db.add(db_user_event_relation)
     db.commit()

@@ -1,35 +1,19 @@
-from datetime import datetime
-
-from ..enums.enum_sport_kind import SportKind
 from sqlalchemy.orm import Session
 
 from .competition_orm_model import Competition
+from .competition_pydantic_model import CompetitionCreate
 
 
-def get_competition(db: Session, competition_id: int) -> None:
-    return db.query(Competition).filter(Competition.id == competition_id).first()
+def get_competition(db: Session, id: int):
+    return db.query(Competition).filter(Competition.id == id).first()
 
 
 def create_competition(
     db: Session,
-    name: str,
-    date: datetime,
-    class_list: list[str],
-    control_point_list: list[str],
-    kind: SportKind = SportKind.RUN,
-    format: str = '',
-    event: int | None = None
-) -> None:
+    competition: CompetitionCreate
+):
 
-    db_competition = Competition(
-        name=name,
-        date=date,
-        class_list=class_list,
-        control_point_list=control_point_list,
-        kind=kind,
-        format=format,
-        event=event
-    )
+    db_competition = Competition(**competition.model_dump())
     db.add(db_competition)
     db.commit()
     db.refresh(db_competition)

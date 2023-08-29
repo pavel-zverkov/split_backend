@@ -25,4 +25,4 @@ class Workout(Base):
     tcx_file = Column(String, nullable=True)
     splits = Column(JSON, nullable=True)
 
-    owner = relationship('User')
+    owner = relationship('User', back_populates='workouts')

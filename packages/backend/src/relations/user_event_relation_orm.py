@@ -11,4 +11,4 @@ class UserEventRelation(Base):
     id = Column(Integer, primary_key=True, index=True)
     user = Column(Integer, ForeignKey('users.id'))
     event = Column(Integer, ForeignKey('events.id'))
-    role = Column(Integer, ForeignKey('user_event_roles.id'))
+    role = Column(Integer, ForeignKey('user_event_roles.id'), nullable=True)

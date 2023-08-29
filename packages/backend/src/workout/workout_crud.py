@@ -1,9 +1,9 @@
 from datetime import datetime
 
-from ..enums.enum_sport_kind import SportKind
 from sqlalchemy.orm import Session
 
 from .workout_orm_model import Workout
+from .workout_pydantic_model import WorkoutCreate
 
 
 def get_workout(db: Session, workout_id: int) -> None:
@@ -25,26 +25,10 @@ def get_user_workouts(
 
 def create_workout(
     db: Session,
-    date: datetime,
-    user_id: int,
-    event: int | None = None,
-    fit_file: str | None = None,
-    gpx_file: str | None = None,
-    tcx_file: str | None = None,
-    splits: dict | None = None,
-    sport_kind: SportKind = SportKind.RUN,
+    workout: WorkoutCreate
 ) -> None:
 
-    db_workout = Workout(
-        date=date,
-        sport_kind=sport_kind,
-        user=user_id,
-        event=event,
-        fit_file=fit_file,
-        gpx_file=gpx_file,
-        tcx_file=tcx_file,
-        splits=splits
-    )
+    db_workout = Workout(**workout.model_dump())
     db.add(db_workout)
     db.commit()
     db.refresh(db_workout)

@@ -9,15 +9,20 @@ if TYPE_CHECKING:
     from ..user.user_pydantic_model import User
 
 
-class Workout(BaseModel):
-
-    id: int
+class WorkoutCreate(BaseModel):
+    user: int
     date: datetime
     sport_kind: SportKind = SportKind.RUN
-    user: int
-    event: int | None
-    fit_file: str | None
-    gpx_file: str | None
-    tcx_file: str | None
-    splits: dict | None
-    owner: 'User'
+    competition: int | None = None
+    fit_file: str | None = None
+    gpx_file: str | None = None
+    tcx_file: str | None = None
+    splits: dict | None = None
+
+
+class Workout(WorkoutCreate):
+
+    id: int
+
+    class Config:
+        orm_mode = True

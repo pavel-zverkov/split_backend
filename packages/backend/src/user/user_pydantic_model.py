@@ -7,15 +7,20 @@ from ..enums.enum_qualify import Qualify
 from ..workout.workout_pydantic_model import Workout
 
 
-class User(BaseModel):
-
-    id: int
+class UserCreate(BaseModel):
     mobile_number: str
     first_name: str
-    last_name: str | None
-    birthdate: datetime | None
-    gender: Gender | None
-    qualify: Qualify | None
-    is_active: bool
+    last_name: str | None = None
+    birthdate: datetime | None = None
+    gender: Gender | None = None
+    qualify: Qualify | None = None
 
+
+class User(UserCreate):
+
+    id: int
+    is_active: bool = True
     workouts: list[Workout] = []
+
+    class Config:
+        orm_mode = True

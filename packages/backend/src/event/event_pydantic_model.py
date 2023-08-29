@@ -6,11 +6,18 @@ from ..enums.enum_sport_kind import SportKind
 from ..enums.enum_status import Status
 
 
-class Event(BaseModel):
+class EventCreate(BaseModel):
 
-    id: int
     name: str
     start_date: datetime
     end_date: datetime
-    sport_kind: SportKind
+    sport_kind: SportKind = SportKind.RUN
+
+
+class Event(EventCreate):
+
+    id: int
     status: Status
+
+    class Config:
+        orm_mode = True
