@@ -17,10 +17,11 @@ competition_router = APIRouter()
 )
 async def read_competition(
     competition_name: str,
+    sport_kind: str,
     db: Session = Depends(get_db)
-):
-    competition = competition_crud.get_competition(
-        db, competition_name)
+) -> Competition | None:
+    competition = competition_crud.get_competition_by_name(
+        db, competition_name, sport_kind)
     return competition
 
 
@@ -29,5 +30,13 @@ async def read_competition(
     tags=["competitions"],
     response_model=Competition
 )
-async def create_competition(competition: CompetitionCreate, db: Session = Depends(get_db)):
+async def create_competition(
+    competition: CompetitionCreate,
+    db: Session = Depends(get_db)
+) -> Competition | None:
+    db_competition = competition_crud.get_competition_by_name(
+        db, competition.name, competition.sport_kind)
+    if db_competition:
+        raise HTTPException(
+            status_code=400, detail=f"Competition {competition.name} already registered")
     return competition_crud.create_competition(db=db, competition=competition)

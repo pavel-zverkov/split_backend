@@ -19,8 +19,16 @@ class Competition(Base):
     date = Column(Date)
     class_list = Column(ARRAY(String))
     control_point_list = Column(ARRAY(String))
-    kind = Column(Enum(SportKind), nullable=True)
+    sport_kind = Column(Enum(SportKind), nullable=True)
     format = Column(String, nullable=True)
-    event = Column(Integer, ForeignKey('events.id'), nullable=True)
+    event = Column(
+        Integer,
+        ForeignKey(
+            'events.id',
+            ondelete='CASCADE',
+            onupdate='CASCADE'
+        ),
+        nullable=True
+    )
 
     parent_event = relationship('Event', back_populates='competitions')

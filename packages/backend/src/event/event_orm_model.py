@@ -3,7 +3,7 @@ from sqlalchemy import (Column,
                         Date,
                         Enum,
                         Integer,
-                        String)
+                        String, UniqueConstraint)
 from sqlalchemy.orm import relationship
 
 from ..database import Base
@@ -15,10 +15,11 @@ class Event(Base):
     __tablename__ = 'events'
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True)
+    name = Column(String, nullable=False)
     start_date = Column(Date)
     end_date = Column(Date)
     sport_kind = Column(Enum(SportKind))
     status = Column(Enum(Status))
+    UniqueConstraint('name', 'sport_kind', name='event_unique_constraint')
 
     competitions = relationship('Competition', back_populates='parent_event')

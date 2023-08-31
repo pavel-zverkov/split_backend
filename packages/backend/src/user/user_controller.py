@@ -21,7 +21,10 @@ async def read_user(
 
 @user_router.post("/user/", tags=["users"], response_model=User)
 async def create_user(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = user_crud.get_user(db, user.mobile_number)
+    db_user = user_crud.get_user_by_name(
+        db, user.first_name, user.last_name, user.birthdate
+    )
     if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(
+            status_code=400, detail=f"User {user.first_name} {user.last_name} already registered")
     return user_crud.create_user(db=db, user=user)

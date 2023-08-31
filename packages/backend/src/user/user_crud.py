@@ -1,17 +1,32 @@
+from datetime import date
 from sqlalchemy.orm import Session
 
 from .user_orm_model import User as ORMUser
-from .user_pydantic_model import UserCreate
+from .user_pydantic_model import UserCreate, User as PyUser
 
 
 def get_user(db: Session, mobile_number: str) -> None:
     return db.query(ORMUser).filter(ORMUser.mobile_number == mobile_number).first()
 
 
+def get_user_by_name(
+    db: Session,
+    first_name: str,
+    last_name: str,
+    birthdate: date
+) -> PyUser | None:
+    return db.query(ORMUser)\
+             .filter(
+                 ORMUser.first_name == first_name,
+                 ORMUser.last_name == last_name,
+                 ORMUser.birthdate == birthdate)\
+             .first()
+
+
 def create_user(
     db: Session,
     user: UserCreate
-) -> None:
+) -> PyUser:
 
     db_user = ORMUser(**user.model_dump())
     db.add(db_user)

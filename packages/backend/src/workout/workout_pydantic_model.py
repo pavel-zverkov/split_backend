@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
@@ -26,3 +26,16 @@ class Workout(WorkoutCreate):
 
     class Config:
         orm_mode = True
+
+
+class WorkoutCreateByUser(BaseModel):
+    user_first_name: str
+    user_last_name: str
+    user_birthdate: date
+    date: datetime
+    sport_kind: SportKind = SportKind.RUN
+    competition_name: str | None = None
+    fit_file: str | None = None
+    gpx_file: str | None = None
+    tcx_file: str | None = None
+    splits: dict | None = None

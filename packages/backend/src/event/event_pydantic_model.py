@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date
 
 from pydantic import BaseModel
 
@@ -9,8 +9,8 @@ from ..enums.enum_status import Status
 class EventCreate(BaseModel):
 
     name: str
-    start_date: datetime
-    end_date: datetime
+    start_date: date
+    end_date: date
     sport_kind: SportKind = SportKind.RUN
 
 
