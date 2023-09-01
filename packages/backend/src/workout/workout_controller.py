@@ -84,6 +84,7 @@ async def create_workout_by_user(
         competition = get_competition_by_name(
             db,
             workout.competition_name,
+            workout.date.date(),
             workout.sport_kind
         )
 
@@ -102,16 +103,18 @@ async def create_workout_by_user(
                     competition.event,
                     COMPETITOR_ROLE_ID
                 )
+    else:
+        competition = None
 
-        workout_create = WorkoutCreate(
-            user=user.id,
-            date=workout.date,
-            sport_kind=workout.sport_kind,
-            competition=competition.id if competition else None,
-            fit_file=workout.fit_file,
-            gpx_file=workout.gpx_file,
-            tcx_file=workout.tcx_file,
-            splits=workout.splits
-        )
+    workout_create = WorkoutCreate(
+        user=user.id,
+        date=workout.date,
+        sport_kind=workout.sport_kind,
+        competition=competition.id if competition else None,
+        fit_file=workout.fit_file,
+        gpx_file=workout.gpx_file,
+        tcx_file=workout.tcx_file,
+        splits=workout.splits
+    )
 
     return workout_crud.create_workout(db=db, workout=workout_create)

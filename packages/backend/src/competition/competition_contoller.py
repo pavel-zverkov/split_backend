@@ -35,7 +35,7 @@ async def create_competition(
     db: Session = Depends(get_db)
 ) -> Competition | None:
     db_competition = competition_crud.get_competition_by_name(
-        db, competition.name, competition.sport_kind)
+        db, competition.name, competition.date, competition.sport_kind)
     if db_competition:
         raise HTTPException(
             status_code=400, detail=f"Competition {competition.name} already registered")

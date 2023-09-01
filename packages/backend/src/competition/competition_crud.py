@@ -1,3 +1,4 @@
+from datetime import date
 from sqlalchemy.orm import Session
 
 from .competition_orm_model import Competition
@@ -8,9 +9,17 @@ def get_competition(db: Session, id: int) -> Competition | None:
     return db.query(Competition).filter(Competition.id == id).first()
 
 
-def get_competition_by_name(db: Session, name: str, sport_kind: str) -> Competition | None:
+def get_competition_by_name(
+    db: Session,
+    name: str,
+    date: date,
+    sport_kind: str
+) -> Competition | None:
     return db.query(Competition)\
-             .filter(Competition.name == name, Competition.sport_kind == sport_kind)\
+             .filter(
+                 Competition.name == name,
+                 Competition.sport_kind == sport_kind,
+                 Competition.date == date)\
              .first()
 
 
