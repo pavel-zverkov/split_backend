@@ -1,8 +1,10 @@
 from datetime import date
+
 from sqlalchemy.orm import Session
 
 from .user_orm_model import User as ORMUser
-from .user_pydantic_model import UserCreate, User as PyUser
+from .user_pydantic_model import User as PyUser
+from .user_pydantic_model import UserCreate
 
 
 def get_user(db: Session, mobile_number: str) -> None:

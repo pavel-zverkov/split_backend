@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import (APIRouter,
+                     Depends,
+                     HTTPException)
 from sqlalchemy.orm import Session
 
 from ..competition.competition_crud import (create_competition,
@@ -6,13 +8,14 @@ from ..competition.competition_crud import (create_competition,
                                             get_competition_by_name)
 from ..database import get_db
 from ..logger import logger
-from ..relations.user_competition_relation_crud import \
-    create_user_competition_relation
+from ..relations.user_competition_relation_crud import create_user_competition_relation
 from ..relations.user_event_relation_crud import create_user_event_relation
 from ..user.user_crud import create_user, get_user_by_name
 from ..user.user_pydantic_model import UserCreate
 from . import workout_crud
-from .workout_pydantic_model import Workout, WorkoutCreate, WorkoutCreateByUser
+from .workout_pydantic_model import (Workout,
+                                     WorkoutCreate,
+                                     WorkoutCreateByUser)
 
 COMPETITOR_ROLE_ID = None
 

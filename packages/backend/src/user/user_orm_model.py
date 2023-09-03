@@ -3,7 +3,8 @@ from sqlalchemy import (Boolean,
                         Date,
                         Enum,
                         Integer,
-                        String, UniqueConstraint)
+                        String,
+                        UniqueConstraint)
 from sqlalchemy.orm import relationship
 
 from ..database import Base
@@ -22,7 +23,9 @@ class User(Base):
     gender = Column(Enum(Gender), nullable=True)
     qualify = Column(Enum(Qualify), nullable=True)
     is_active = Column(Boolean, default=True)
-    UniqueConstraint('first_name', 'last_name', 'birthdate',
-                     name='user_unique_constraint')
+    __table_args__ = (
+        UniqueConstraint('first_name', 'last_name', 'birthdate',
+                         name='user_unique_constraint'),
+    )
 
     workouts = relationship('Workout', back_populates='owner')

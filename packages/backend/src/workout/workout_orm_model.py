@@ -1,11 +1,11 @@
-
 from sqlalchemy import (JSON,
                         Column,
                         Date,
                         Enum,
                         ForeignKey,
                         Integer,
-                        String)
+                        String,
+                        UniqueConstraint)
 from sqlalchemy.orm import relationship
 
 from ..database import Base
@@ -32,5 +32,14 @@ class Workout(Base):
     gpx_file = Column(String, nullable=True)
     tcx_file = Column(String, nullable=True)
     splits = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            'date',
+            'sport_kind',
+            'user',
+            name='workout_unique_constraint'
+        ),
+    )
 
     owner = relationship('User', back_populates='workouts')

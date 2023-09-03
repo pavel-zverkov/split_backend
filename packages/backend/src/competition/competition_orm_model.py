@@ -21,6 +21,8 @@ class Competition(Base):
     control_point_list = Column(ARRAY(String))
     sport_kind = Column(Enum(SportKind), nullable=True)
     format = Column(String, nullable=True)
+    description = Column(String, nullable=True)
+    location = Column(String, nullable=True)
     event = Column(
         Integer,
         ForeignKey(
