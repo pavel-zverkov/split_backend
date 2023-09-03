@@ -1,5 +1,4 @@
 from datetime import date
-from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
@@ -13,6 +12,8 @@ class CompetitionCreate(BaseModel):
     control_point_list: list[str]
     sport_kind: SportKind | None = SportKind.RUN
     format: str | None = None
+    description: str | None = None
+    location: str | None = None
     event: int | None = None
 
 

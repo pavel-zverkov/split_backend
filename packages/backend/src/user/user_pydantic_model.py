@@ -12,14 +12,14 @@ class UserCreate(BaseModel):
     first_name: str
     last_name: str | None = None
     birthdate: date | None = None
-    gender: Gender | None = None
     qualify: Qualify | None = None
-    is_active: bool = True
+    is_active: bool = False
 
 
 class User(UserCreate):
 
     id: int
+    gender: Gender | None = None
     workouts: list[Workout] = []
 
     class Config:

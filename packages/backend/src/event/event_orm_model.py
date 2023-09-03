@@ -20,6 +20,8 @@ class Event(Base):
     end_date = Column(Date)
     sport_kind = Column(Enum(SportKind))
     status = Column(Enum(Status))
-    UniqueConstraint('name', 'sport_kind', name='event_unique_constraint')
+    __table_args__ = (
+        UniqueConstraint('name', 'sport_kind', name='event_unique_constraint'),
+    )
 
     competitions = relationship('Competition', back_populates='parent_event')
