@@ -1,4 +1,5 @@
 from datetime import date
+
 from sqlalchemy.orm import Session
 
 from .competition_orm_model import Competition

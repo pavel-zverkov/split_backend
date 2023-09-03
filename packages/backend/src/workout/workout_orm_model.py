@@ -1,11 +1,11 @@
-
 from sqlalchemy import (JSON,
                         Column,
                         Date,
                         Enum,
                         ForeignKey,
                         Integer,
-                        String, UniqueConstraint)
+                        String,
+                        UniqueConstraint)
 from sqlalchemy.orm import relationship
 
 from ..database import Base

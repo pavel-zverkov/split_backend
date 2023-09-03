@@ -3,7 +3,8 @@ from sqlalchemy import (Boolean,
                         Date,
                         Enum,
                         Integer,
-                        String, UniqueConstraint)
+                        String,
+                        UniqueConstraint)
 from sqlalchemy.orm import relationship
 
 from ..database import Base
