@@ -8,10 +8,6 @@
         "editor.defaultFormatter": "ms-python.autopep8"
     },
     "python.formatting.provider": "none",
-    "python.terminal.launchArgs": [
-        "sys.path.append",
-        "${workspaceFolder}"
-    ],
     "pylint.args": [
         "disable",
         "W0611"

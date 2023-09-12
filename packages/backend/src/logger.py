@@ -1,5 +1,6 @@
 from sys import stdout
 
+from .config import Config
 from loguru import logger
 
 FMT = ('{time:HH:mm:ss} <level>{level: <8}</level>' +
@@ -12,5 +13,5 @@ logger.remove()
 logger.add(
     sink=stdout,
     colorize=True,
-    format=FMT, level='DEBUG'
+    format=FMT, level=Config.LOG_LEVEL.upper()
 )
