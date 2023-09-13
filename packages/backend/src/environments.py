@@ -1,5 +1,6 @@
 class Environments:
 
+    LOG_LEVEL: str = 'DEBUG'
     # Database envs
     POSTGRES_HOST: str
     POSTGRES_PORT: str

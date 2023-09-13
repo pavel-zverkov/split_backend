@@ -25,7 +25,7 @@ class SplitComparerEntity:
         self,
         competition_left: Competition,
         competition_right: Competition
-    ) -> list[str]:
+    ) -> list[list[str]]:
 
         left_ctrl_points = competition_left.control_point_list
         right_ctrl_points = competition_right.control_point_list
@@ -36,6 +36,6 @@ class SplitComparerEntity:
         self,
         split_left: Split,
         split_right: Split,
-        common_ctrl_points: list[str]
+        common_ctrl_points: list[list[str]]
     ) -> str:
         pass
