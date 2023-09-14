@@ -8,9 +8,9 @@ for (let i = 1; i < rows.length; i++) {
     const resultCell = row.cells[3];
 
     if (resultCell.textContent.includes('-')) {
-        resultCell.style.color = 'rgba(255, 255, 255, 0.2)';
+        resultCell.style.color = 'rgba(0, 255, 0, 1)';
     } else if (resultCell.textContent.includes('+')) {
-        resultCell.style.color = 'red';
+        resultCell.style.color = 'rgba(245, 0, 0, 1)';
     } else {
 
     }
