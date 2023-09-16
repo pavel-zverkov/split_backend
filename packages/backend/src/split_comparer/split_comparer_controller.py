@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from ..event.event_crud import get_event
 from ..split_comparer.split_control_point import ControlPoint
 from ..competition.competition_orm_model import Competition
 
@@ -38,6 +39,7 @@ async def compare_split(
     db: Session = Depends(get_db)
 ) -> HTMLResponse:
 
+    event = get_event(db, event_id)
     workout_1 = get_workout_by_event(db, user_id_1, event_id, competition_date)
     workout_2 = get_workout_by_event(db, user_id_2, event_id, competition_date)
 
@@ -57,6 +59,9 @@ async def compare_split(
         'split.html',
         {
             'request': request,
+            'event': event.name,
+            'description': competition_1.description,
+            'date': competition_1.date,
             'competitor_1': split_1.person,
             'competitor_2': split_2.person,
             'data': data
@@ -75,6 +80,7 @@ def __create_split(
     person = user.first_name + ' ' + user.last_name
     class_code = ''  # TODO: Improve
     ctrl_points_info = __get_ctrl_points_info(workout.splits)
+    # logger.debug(ctrl_points_info)
     result = ctrl_points_info['-1'].cumulative_time
 
     return Split(
@@ -88,7 +94,7 @@ def __create_split(
 
 def __get_ctrl_points_info(
     ctrl_points_info_dict: dict
-) -> list[ControlPoint]:
+) -> dict[str, ControlPoint]:
 
     return {
         ctrl_point_info['id']: ControlPoint(

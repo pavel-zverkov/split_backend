@@ -60,6 +60,22 @@ class SplitComparerEntity:
                     ]
                 )
 
+            output.append(['-', '', '', ''])
+
+        output.append(
+            [
+                'Результат',
+                split_left.ctrl_points_info['-1'].cumulative_time.strftime(
+                    '%H:%M:%S'),
+                split_right.ctrl_points_info['-1'].cumulative_time.strftime(
+                    '%H:%M:%S'),
+                self.__get_str_diff(
+                    split_left.ctrl_points_info['-1'].cumulative_time,
+                    split_right.ctrl_points_info['-1'].cumulative_time,
+                )
+            ]
+        )
+
         return output
 
     def __get_str_diff(
