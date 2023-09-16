@@ -1,10 +1,7 @@
-from fastapi import (APIRouter,
-                     Depends,
-                     HTTPException)
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from ..competition.competition_crud import (create_competition,
-                                            get_competition,
+from ..competition.competition_crud import (get_competition,
                                             get_competition_by_name)
 from ..database import get_db
 from ..logger import logger

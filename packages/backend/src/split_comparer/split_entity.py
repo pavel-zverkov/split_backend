@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, time
 
 from ..competition.competition_orm_model import Competition
 from .split_control_point import ControlPoint
@@ -10,5 +10,5 @@ class Split:
     competition: Competition
     person: str
     class_code: str
-    ctrl_points_info: list[ControlPoint]
-    result: datetime.time | None
+    ctrl_points_info: dict[str, ControlPoint]
+    result: time | None

@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-from datetime import time
+from datetime import datetime
 
 
 @dataclass
 class ControlPoint:
     id: str
-    split_time: time
-    cumulative_time: time
+    split_time: datetime
+    cumulative_time: datetime
     place: int
