@@ -2,12 +2,27 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from ..competition.competition_orm_model import Competition
+from ..logger import logger
 from .workout_orm_model import Workout
 from .workout_pydantic_model import WorkoutCreate
 
 
-def get_workout(db: Session, workout_id: int) -> None:
-    return db.query(Workout).filter(Workout.id == workout_id).first()
+def get_workout_by_event(
+    db: Session,
+    user_id: int,
+    event_id: int,
+    competition_date: datetime
+) -> Workout:
+
+    workout = db.query(Workout).outerjoin(Competition). \
+        filter(
+            Workout.user == user_id,
+            Competition.event == event_id,
+            Competition.date == competition_date
+    ).first()
+
+    return workout
 
 
 def get_user_workouts(
@@ -15,7 +30,7 @@ def get_user_workouts(
     user_id: int,
     skip: int = 0,
     limit: int = 100
-) -> None:
+) -> list[Workout]:
     return db.query(Workout)\
              .filter(Workout.user == user_id)\
              .offset(skip)\
@@ -26,7 +41,7 @@ def get_user_workouts(
 def create_workout(
     db: Session,
     workout: WorkoutCreate
-) -> None:
+) -> Workout:
 
     db_workout = Workout(**workout.model_dump())
     db.add(db_workout)

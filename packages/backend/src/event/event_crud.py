@@ -8,6 +8,10 @@ from .event_orm_model import Event
 from .event_pydantic_model import EventCreate
 
 
+def get_event(db: Session, event_id: int) -> Event:
+    return db.query(Event).filter(Event.id == event_id).first()
+
+
 def get_event_by_name(db: Session, event_name: int, sport_kind: str) -> Event:
     return db.query(Event)\
              .filter(

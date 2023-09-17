@@ -2,6 +2,9 @@ from ..logger import logger
 
 
 def find_common_subsequences(nums1: list, nums2: list) -> list:
+    nums1 = ['start'] + nums1
+    nums2 = ['start'] + nums2
+
     n = len(nums1)
     m = len(nums2)
 
@@ -13,19 +16,19 @@ def find_common_subsequences(nums1: list, nums2: list) -> list:
         j = 0
 
         while j < m - 1 and not common_sub_seq:
-            logger.trace(f'Indexes - {[i, j]}')
+            # logger.trace(f'Indexes - {[i, j]}')
             compare_list = nums2[j:j + 2]
 
-            logger.debug(f'base_list - {base_list}')
-            logger.debug(f'compare_list - {compare_list}')
+            # logger.debug(f'base_list - {base_list}')
+            # logger.debug(f'compare_list - {compare_list}')
 
             if base_list == compare_list:
                 while True:
                     common_sub_seq = base_list
-                    logger.debug(f'Common sub seq - {common_sub_seq}')
+                    # logger.debug(f'Common sub seq - {common_sub_seq}')
 
                     if i + 2 == n or j + 2 == m:
-                        common_seq.append(common_sub_seq)
+                        common_seq.append(common_sub_seq[1:])
                         break
 
                     elif nums1[i + 2] == nums2[j + 2]:
@@ -37,12 +40,13 @@ def find_common_subsequences(nums1: list, nums2: list) -> list:
                         continue
 
                     else:
-                        common_seq.append(common_sub_seq)
+                        common_seq.append(common_sub_seq[1:])
                         break
 
             j += 1
         i += 1
 
+    logger.debug(common_seq)
     return common_seq
 
 
