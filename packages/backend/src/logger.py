@@ -1,7 +1,8 @@
 from sys import stdout
 
-from .config import Config
 from loguru import logger
+
+from .config import Config
 
 FMT = ('{time:HH:mm:ss} <level>{level: <8}</level>' +
        '<cyan>{name}:{function}:{line}</cyan> ' +

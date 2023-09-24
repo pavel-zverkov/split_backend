@@ -6,7 +6,6 @@ from .user_orm_model import User as ORMUser
 from .user_pydantic_model import User as PyUser
 from .user_pydantic_model import UserCreate
 
-
 # def get_user(db: Session, mobile_number: str) -> None:
 #     return db.query(ORMUser).filter(ORMUser.mobile_number == mobile_number).first()
 

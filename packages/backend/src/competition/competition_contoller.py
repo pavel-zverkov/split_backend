@@ -4,6 +4,7 @@ from fastapi import (APIRouter,
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..logger import logger
 from . import competition_crud
 from .competition_pydantic_model import Competition, CompetitionCreate
 
@@ -34,6 +35,9 @@ async def create_competition(
     competition: CompetitionCreate,
     db: Session = Depends(get_db)
 ) -> Competition | None:
+
+    logger.debug(competition.__dict__)
+
     db_competition = competition_crud.get_competition_by_name(
         db, competition.name, competition.date, competition.sport_kind)
     if db_competition:

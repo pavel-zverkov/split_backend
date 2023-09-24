@@ -1,25 +1,25 @@
 from datetime import date, datetime
 from random import randint
-from fastapi import APIRouter, Request, Depends
-from sqlalchemy.orm import Session
+
+from fastapi import (APIRouter,
+                     Depends,
+                     Request)
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
 
-from ..event.event_crud import get_event
-from ..split_comparer.split_control_point import ControlPoint
-from ..competition.competition_orm_model import Competition
-
-from ..user.user_orm_model import User
-from ..workout.workout_orm_model import Workout
-
-from ..logger import logger
-from ..workout.workout_crud import get_workout_by_event
-from ..user.user_crud import get_user
-from ..database import get_db
-from .split_entity import Split
 from ..competition.competition_crud import get_competition
-
+from ..competition.competition_orm_model import Competition
+from ..database import get_db
+from ..event.event_crud import get_event
+from ..logger import logger
+from ..split_comparer.split_control_point import ControlPoint
+from ..user.user_crud import get_user
+from ..user.user_orm_model import User
+from ..workout.workout_crud import get_workout_by_event
+from ..workout.workout_orm_model import Workout
 from .split_comparer_entity import SplitComparerEntity
+from .split_entity import Split
 
 split_comparer_router = APIRouter()
 template_list = Jinja2Templates(directory='src/html')

@@ -38,6 +38,7 @@ class Workout(Base):
             'date',
             'sport_kind',
             'user',
+            'competition',
             name='workout_unique_constraint'
         ),
     )

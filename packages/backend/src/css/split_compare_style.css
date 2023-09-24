@@ -1,19 +1,19 @@
 h1 {
     font-size: 30px;
-    color: #fff;
+    color: #bdc3c7;
     font-weight: 300;
 }
 
 h2 {
     font-size: 25px;
-    color: #fff;
+    color: #bdc3c7;
     font-weight: 200;
     margin-bottom: 5px;
 }
 
 h3 {
     font-size: 20px;
-    color: #fff;
+    color: #bdc3c7;
     font-weight: 150;
     margin-bottom: 5px;
 }
@@ -30,7 +30,7 @@ table {
     height: 300px;
     overflow-x: auto;
     margin-top: 0px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid #242b33;
 }
 
 th {
@@ -38,7 +38,7 @@ th {
     text-align: left;
     font-weight: 500;
     font-size: 18px;
-    color: #fff;
+    color: #bdc3c7;
 }
 
 td {
@@ -47,8 +47,8 @@ td {
     vertical-align: middle;
     font-weight: 500;
     font-size: 14px;
-    color: #fff;
-    border-bottom: solid 2px rgba(255, 255, 255, 0.1);
+    color: #bdc3c7;
+    border-bottom: solid 2px #242b33;
 }
 
 th:nth-child(1),
@@ -68,8 +68,8 @@ th:nth-child(4) {
 
 th:nth-child(2),
 th:nth-child(3) {
-    border-bottom: solid 5px rgba(255, 255, 255, 0.2);
-    width: 150px;
+    border-bottom: solid 5px#242b33;
+    width: 100px;
 }
 
 td:nth-child(1),
@@ -92,7 +92,7 @@ td:nth-child(4) {
 @import url(https://fonts.googleapis.com/css?family=Roboto:400,500,300,700);
 
 body {
-    background: #0c274f;
+    background: #13191f;
     font-family: 'Roboto', sans-serif;
 }
 
