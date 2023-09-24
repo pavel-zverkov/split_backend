@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from ..competition.competition_crud import (get_competition,
-                                            get_competition_by_name)
+from ..competition.competition_crud import get_competition, get_competition_by_name
 from ..database import get_db
 from ..logger import logger
 from ..relations.user_competition_relation_crud import create_user_competition_relation
@@ -64,6 +63,8 @@ async def create_workout_by_user(
     workout: WorkoutCreateByUser,
     db: Session = Depends(get_db)
 ):
+
+    logger.debug(workout.__dict__)
 
     user = get_user_by_name(
         db,

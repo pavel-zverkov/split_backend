@@ -1,7 +1,8 @@
 from datetime import datetime
+
 from ..competition.competition_orm_model import Competition
-from .split_entity import Split
 from ..utils.common_list_item import find_common_subsequences
+from .split_entity import Split
 
 
 class SplitComparerEntity:

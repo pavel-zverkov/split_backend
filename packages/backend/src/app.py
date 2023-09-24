@@ -2,7 +2,9 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from .competition.competition_contoller import competition_router
-from .database import Base, engine, tables
+from .database import (Base,
+                       engine,
+                       tables)
 from .event.event_controller import event_router
 from .split_comparer.split_comparer_controller import split_comparer_router
 from .user.user_controller import user_router

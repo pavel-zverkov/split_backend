@@ -23,7 +23,7 @@ def get_event_by_name(db: Session, event_name: int, sport_kind: str) -> Event:
 def create_event(
     db: Session,
     event: EventCreate
-) -> None:
+) -> Event:
 
     status = __get_status(event.start_date, event.end_date)
     db_event = Event(
@@ -43,7 +43,7 @@ def __get_status(start_date: date, end_date: date) -> Status:
     NOW = datetime.now()
     if NOW.date() > end_date:
         return Status.CLOSED
-    elif NOW.date() >= start_date and NOW <= end_date:
+    elif NOW.date() >= start_date and NOW.date() <= end_date:
         return Status.IN_PROGRESS
     return Status.PLANNED
 

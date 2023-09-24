@@ -4,6 +4,7 @@ from fastapi import (APIRouter,
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..logger import logger
 from . import event_crud
 from .event_pydantic_model import Event, EventCreate
 
@@ -30,11 +31,13 @@ async def read_event(
     response_model=Event
 )
 async def create_event(event: EventCreate, db: Session = Depends(get_db)):
+    logger.info(event.__dict__)
     db_event = event_crud.get_event_by_name(
         db, event.name, event.sport_kind)
     if db_event:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Event {event.name} for sport kind {event.sport_kind} already registered"
-        )
+        logger.debug(type(db_event))
+        logger.debug(db_event)
+        logger.warning(
+            f"Event {event.name} for sport kind {event.sport_kind} already registered")
+        return db_event
     return event_crud.create_event(db=db, event=event)
