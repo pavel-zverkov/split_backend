@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from ..competition.competition_orm_model import Competition
 from ..logger import logger
 from .workout_orm_model import Workout
-from .workout_pydantic_model import WorkoutCreate
+from .workout_pydantic_model import WorkoutCreate, Workout as PydWorkout
 
 
 def get_workout_by_event(
@@ -35,6 +35,15 @@ def get_user_workouts(
              .filter(Workout.user == user_id)\
              .offset(skip)\
              .limit(limit)\
+             .all()
+
+
+def get_competition_workouts(
+        db: Session,
+        competition_id: int
+) -> list[PydWorkout]:
+    return db.query(Workout)\
+             .filter(Workout.competition == competition_id)\
              .all()
 
 
