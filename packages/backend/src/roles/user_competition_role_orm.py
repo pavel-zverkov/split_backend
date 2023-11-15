@@ -1,7 +1,4 @@
-
-from sqlalchemy import (Column,
-                        Enum,
-                        Integer)
+from sqlalchemy import Column, Enum, Integer
 
 from ..database import Base
 from ..enums.enum_user_competition_role import UserCompetitionRole as Role

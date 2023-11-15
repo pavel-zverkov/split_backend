@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from ..competition.competition_orm_model import Competition
 from ..logger import logger
 from .workout_orm_model import Workout
-from .workout_pydantic_model import WorkoutCreate, Workout as PydWorkout
+from .workout_pydantic_model import Workout as PydWorkout
+from .workout_pydantic_model import WorkoutCreate
 
 
 def get_workout_by_event(

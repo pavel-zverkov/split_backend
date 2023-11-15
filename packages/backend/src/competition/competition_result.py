@@ -1,12 +1,12 @@
 from datetime import datetime
 from typing import NamedTuple
+
 from sqlalchemy.orm import Session
 
-from ..enums.enum_gender import Gender
-
-from ..workout.workout_crud import get_competition_workouts
-from ..user.user_crud import get_user
 from ..competition.competition_crud import get_competition
+from ..enums.enum_gender import Gender
+from ..user.user_crud import get_user
+from ..workout.workout_crud import get_competition_workouts
 
 DSQ = 'DSQ'
 

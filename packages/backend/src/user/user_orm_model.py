@@ -1,9 +1,4 @@
-from sqlalchemy import (Boolean,
-                        Column,
-                        Date,
-                        Enum,
-                        Integer,
-                        String,
+from sqlalchemy import (Boolean, Column, Date, Enum, Integer, String,
                         UniqueConstraint)
 from sqlalchemy.orm import relationship
 

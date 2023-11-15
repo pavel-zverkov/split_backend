@@ -1,9 +1,7 @@
 from datetime import date, datetime
 from random import randint
 
-from fastapi import (APIRouter,
-                     Depends,
-                     Request)
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session

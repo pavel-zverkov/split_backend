@@ -1,9 +1,7 @@
 """
 Модуль для инициализации конфигурации сервиса
 """
-from os import (_Environ,
-                environ,
-                path)
+from os import _Environ, environ, path
 from typing import get_type_hints
 
 from dotenv import load_dotenv

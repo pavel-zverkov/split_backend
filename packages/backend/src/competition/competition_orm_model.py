@@ -1,10 +1,4 @@
-from sqlalchemy import (ARRAY,
-                        Column,
-                        Date,
-                        Enum,
-                        ForeignKey,
-                        Integer,
-                        String)
+from sqlalchemy import ARRAY, Column, Date, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from ..database import Base
