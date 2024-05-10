@@ -32,8 +32,7 @@ async def read_event(
 )
 async def create_event(event: EventCreate, db: Session = Depends(get_db)):
     logger.info(event.__dict__)
-    db_event = event_crud.get_event_by_name(
-        db, event.name, event.sport_kind)
+    db_event = event_crud.get_event_by_name(db, event.name, event.sport_kind)
     if db_event:
         logger.debug(type(db_event))
         logger.debug(db_event)

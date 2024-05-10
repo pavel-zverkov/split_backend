@@ -1,7 +1,7 @@
 version: "3.9"
 services:
   postgres:
-    image: postgres:latest
+    image: postgres:15.5
     env_file:
       - ../packages/postgres/.env
     volumes:
@@ -9,7 +9,11 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U split_pg_user -d split_pg_pswd"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U split_pg_user -d split_pg_pswd"
+        ]
       interval: 10s
       timeout: 5s
       retries: 5

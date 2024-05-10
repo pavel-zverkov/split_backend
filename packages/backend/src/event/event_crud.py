@@ -2,17 +2,16 @@ from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
-from ..enums.enum_sport_kind import SportKind
 from ..enums.enum_status import Status
 from .event_orm_model import Event
 from .event_pydantic_model import EventCreate
 
 
-def get_event(db: Session, event_id: int) -> Event:
+def get_event(db: Session, event_id: int) -> Event | None:
     return db.query(Event).filter(Event.id == event_id).first()
 
 
-def get_event_by_name(db: Session, event_name: int, sport_kind: str) -> Event:
+def get_event_by_name(db: Session, event_name: str, sport_kind: str) -> Event | None:
     return db.query(Event)\
              .filter(
                  Event.name == event_name,
