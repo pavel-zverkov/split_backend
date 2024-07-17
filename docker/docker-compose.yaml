@@ -1,7 +1,7 @@
 version: "3.9"
 services:
   postgres:
-    image: postgres:15.5
+    image: postgis/postgis:15-3.4
     env_file:
       - ../packages/postgres/.env
     volumes:
@@ -24,3 +24,14 @@ services:
         limits:
           cpus: '1'
           memory: 4G
+  minio:
+    image: quay.io/minio/minio
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    env_file:
+      - ../packages/minio/.env
+    volumes:
+      - ../packages/minio/data:/data
+    command: server /data --console-address ":9001"

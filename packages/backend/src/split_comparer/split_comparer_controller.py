@@ -9,6 +9,11 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from starlette.templating import _TemplateResponse
 
+from ..artifact.artifact_controller import BUCKET_NAME
+from ..artifact.artifact_orm_model import Artifact
+from ..database.minio_integration import get_minio_client
+from ..enums.enum_artifact_kind import ArtifactKind
+
 from ..competition.competition_crud import get_competition
 from ..competition.competition_orm_model import Competition
 from ..database import get_db
@@ -46,10 +51,8 @@ async def compare_split(
     competitor_1 = _get_user(db, user_id_1)
     competitor_2 = _get_user(db, user_id_2)
 
-    workout_1 = _get_workout_by_event(
-        db, user_id_1, event_id, competition_date)
-    workout_2 = _get_workout_by_event(
-        db, user_id_2, event_id, competition_date)
+    workout_1 = _get_workout_by_event(db, user_id_1, event_id, competition_date)
+    workout_2 = _get_workout_by_event(db, user_id_2, event_id, competition_date)
 
     competition_1 = _get_competition(db, workout_1)
     competition_2 = _get_competition(db, workout_2)
@@ -59,6 +62,8 @@ async def compare_split(
 
     split_comparer = SplitComparerEntity()
     data = split_comparer.compare_splits(split_1, split_2)
+    
+    map_url = __get_map_url(db, competition_1)
 
     render = template_list.TemplateResponse(
         'split.html',
@@ -69,7 +74,8 @@ async def compare_split(
             'date': competition_1.date,
             'competitor_1': split_1.person,
             'competitor_2': split_2.person,
-            'data': data
+            'data': data,
+            'map_url': map_url
         }
     )
 
@@ -86,7 +92,10 @@ def __create_split(
     class_code = ''  # TODO: Improve
     ctrl_points_info = __get_ctrl_points_info(workout.splits)
     # logger.debug(ctrl_points_info)
-    result = ctrl_points_info['-1'].cumulative_time
+    try:
+        result = ctrl_points_info['-1'].cumulative_time
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f'Splits are empty, for {user.first_name} {user.last_name}')
 
     return Split(
         competition,
@@ -159,3 +168,19 @@ def _get_competition(db: Session, workout: Workout) -> Competition:
         )
 
     return competition
+
+
+def __get_map_url(db: Session, competition: Competition) -> str:
+    artifact = db.query(Artifact)\
+        .filter(
+            Artifact.competition == competition.id,
+            Artifact.kind == ArtifactKind.O_MAP)\
+        .first()
+    
+    minio_client = get_minio_client()
+
+    return minio_client.get_presigned_url(
+        'GET',
+        BUCKET_NAME,
+        artifact.file_path
+    )
