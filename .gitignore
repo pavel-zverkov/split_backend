@@ -8,3 +8,4 @@ __pycache__/
 
 # Database
 packages/postgres/data
+packages/minio/data

@@ -18,9 +18,36 @@ h3 {
     margin-bottom: 5px;
 }
 
-table {
-    table-layout: fixed;
+.container {
+    display: flex;
 }
+
+.compare_table {
+    height: 100vh;
+    /* Задаем высоту контейнера в 100% высоты экрана */
+    /* Задаем ширину контейнера в 50% ширины экрана */
+    overflow-x: hidden;
+    /* Разрешаем горизонтальную прокрутку */
+    overflow-y: scroll;
+    /* Скрываем вертикальную прокрутку */
+    position: relative;
+    /* Устанавливаем позиционирование как относительное */
+}
+
+.map {
+    flex: 1;
+    padding: 5px;
+    height: 100vh;
+    /* Задаем высоту контейнера в 100% высоты экрана */
+    /* Задаем ширину контейнера в 50% ширины экрана */
+    overflow-x: scroll;
+    /* Разрешаем горизонтальную прокрутку */
+    overflow-y: scroll;
+    /* Скрываем вертикальную прокрутку */
+    position: relative;
+    /* Устанавливаем позиционирование как относительное */
+}
+
 
 .tbl-header {
     background-color: rgba(255, 255, 255, 0.3);
@@ -94,8 +121,4 @@ td:nth-child(4) {
 body {
     background: #13191f;
     font-family: 'Roboto', sans-serif;
-}
-
-section {
-    margin: 50px;
 }

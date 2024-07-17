@@ -1,3 +1,4 @@
+from datetime import date
 from fastapi import (APIRouter,
                      Depends,
                      HTTPException)
@@ -18,11 +19,11 @@ competition_router = APIRouter()
 )
 async def read_competition(
     competition_name: str,
+    date: date,
     sport_kind: str,
     db: Session = Depends(get_db)
 ) -> Competition | None:
-    competition = competition_crud.get_competition_by_name(
-        db, competition_name, sport_kind)
+    competition = competition_crud.get_competition_by_name(db, competition_name, date, sport_kind)
     return competition
 
 
@@ -41,6 +42,5 @@ async def create_competition(
     db_competition = competition_crud.get_competition_by_name(
         db, competition.name, competition.date, competition.sport_kind)
     if db_competition:
-        raise HTTPException(
-            status_code=400, detail=f"Competition {competition.name} already registered")
+        raise HTTPException(status_code=400, detail=f"Competition {competition.name} already registered")
     return competition_crud.create_competition(db=db, competition=competition)

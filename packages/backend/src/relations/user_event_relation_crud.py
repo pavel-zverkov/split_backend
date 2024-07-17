@@ -1,12 +1,9 @@
-from datetime import datetime
-
 from sqlalchemy.orm import Session
 
-from ..enums.enum_sport_kind import SportKind
 from .user_event_relation_orm import UserEventRelation
 
 
-def get_user_event_relation(db: Session, ue_r_id: int) -> None:
+def get_user_event_relation(db: Session, ue_r_id: int) -> UserEventRelation | None:
     return db.query(UserEventRelation)\
              .filter(UserEventRelation.id == ue_r_id)\
              .first()
@@ -17,7 +14,7 @@ def create_user_event_relation(
     user_id: int,
     event_id: int,
     role_id: int
-) -> None:
+) -> UserEventRelation:
 
     db_user_event_relation = UserEventRelation(
         user=user_id,
