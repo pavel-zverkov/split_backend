@@ -3,22 +3,22 @@
 
 <head>
     <title>split_compare</title>
-    <!-- <script src="https://telegram.org/js/telegram-web-app.js"></script> -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         .compare_table_header {
             position: sticky;
             top: 0;
             width: 390px;
-            background-color: #13191f;
+            background-color: var(--tg-theme-bg-color);
         }
 
         .compare_table_header th {
             width: 390px;
             padding: 20px 15px;
+            padding-right: 25px;
             font-weight: 700;
             font-size: 16px;
-            color: #bdc3c7;
-            border-bottom: solid 3px#242b33;
+            color: var(--tg-theme-text-color);
             text-align: right;
             white-space: pre-wrap;
         }
@@ -30,6 +30,7 @@
 
         .compare_table_header th:nth-child(2) {
             text-align: left;
+            padding-left: 3px;
         }
 
         .compare_table {
@@ -50,8 +51,8 @@
             vertical-align: middle;
             font-weight: 500;
             font-size: 14px;
-            color: #bdc3c7;
-            border-bottom: solid 2px #242b33;
+            color: var(--tg-theme-text-color);
+            border-bottom: solid 2px var(--tg-theme-section-separator-color);
         }
 
         td:nth-child(1),
@@ -68,13 +69,28 @@
             font-weight: 650;
         }
 
+        .map_container {
+            width: 390px;
+            overflow: scroll;
+        }
+
+        .map_container img {
+            width: 100%;
+            transition: transform 0.3s ease;
+            transform-origin: center center;
+        }
+
+        /* .map_container:hover img {
+            transform: scale(2);
+        } */
+
 
         /* demo styles */
 
         @import url(https://fonts.googleapis.com/css?family=Roboto:400,500,300,700);
 
         body {
-            background: #13191f;
+            background: var(--tg-theme-bg-color);
             font-family: 'Roboto', sans-serif;
         }
 
@@ -87,8 +103,6 @@
             .compare_table_header th {
                 font-weight: 700;
                 font-size: 16px;
-                color: #bdc3c7;
-                border-bottom: solid 3px#242b33;
                 width: 50vw;
             }
 
@@ -148,6 +162,9 @@
                 }
             </script>
         </div>
+    </div>
+    <div class="map_container">
+        <img id="map_img" src="{{ map_url }}" />
     </div>
 </body>
 
