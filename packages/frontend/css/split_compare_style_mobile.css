@@ -1,0 +1,124 @@
+h1 {
+    font-size: 30px;
+    color: #bdc3c7;
+    font-weight: 300;
+}
+
+h2 {
+    font-size: 25px;
+    color: #bdc3c7;
+    font-weight: 200;
+    margin-bottom: 5px;
+}
+
+h3 {
+    font-size: 20px;
+    color: #bdc3c7;
+    font-weight: 150;
+    margin-bottom: 5px;
+}
+
+.container {
+    display: flex;
+}
+
+.compare_table {
+    height: 100vh;
+    /* Задаем высоту контейнера в 100% высоты экрана */
+    /* Задаем ширину контейнера в 50% ширины экрана */
+    overflow-x: hidden;
+    /* Разрешаем горизонтальную прокрутку */
+    overflow-y: scroll;
+    /* Скрываем вертикальную прокрутку */
+    position: relative;
+    /* Устанавливаем позиционирование как относительное */
+}
+
+.map {
+    flex: 1;
+    padding: 5px;
+    height: 100vh;
+    /* Задаем высоту контейнера в 100% высоты экрана */
+    /* Задаем ширину контейнера в 50% ширины экрана */
+    overflow-x: scroll;
+    /* Разрешаем горизонтальную прокрутку */
+    overflow-y: scroll;
+    /* Скрываем вертикальную прокрутку */
+    position: relative;
+    /* Устанавливаем позиционирование как относительное */
+}
+
+
+.tbl-header {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+.tbl-content {
+    /* height: 400px; */
+    overflow-x: auto;
+    margin-top: 0px;
+    border: 3px solid #242b33;
+}
+
+th {
+    padding: 50px 37px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 40px;
+    color: #bdc3c7;
+}
+
+td {
+    padding: 37px;
+    text-align: left;
+    vertical-align: middle;
+    font-weight: 500;
+    font-size: 35px;
+    color: #bdc3c7;
+    border-bottom: solid 5px #242b33;
+}
+
+th:nth-child(1),
+th:nth-child(4) {
+    width: 100px;
+}
+
+th:nth-child(1),
+th:nth-child(2) {
+    text-align: right;
+}
+
+th:nth-child(3),
+th:nth-child(4) {
+    text-align: left;
+}
+
+th:nth-child(2),
+th:nth-child(3) {
+    border-bottom: solid 5px#242b33;
+}
+
+td:nth-child(1),
+td:nth-child(2) {
+    text-align: right;
+}
+
+td:nth-child(3),
+td:nth-child(4) {
+    text-align: left;
+}
+
+td:nth-child(4) {
+    font-weight: 650;
+    padding-left: 10px;
+}
+
+
+/* demo styles */
+
+@import url(https://fonts.googleapis.com/css?family=Roboto:400,500,300,700);
+
+body {
+    background: #13191f;
+    font-family: 'Roboto', sans-serif;
+}

@@ -65,7 +65,7 @@ class SplitComparerEntity:
 
         output.append(
             [
-                'Результат',
+                'Ф',
                 split_left.ctrl_points_info['-1'].cumulative_time.strftime(
                     '%H:%M:%S'),
                 split_right.ctrl_points_info['-1'].cumulative_time.strftime(

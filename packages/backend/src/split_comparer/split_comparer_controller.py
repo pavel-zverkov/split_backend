@@ -29,7 +29,7 @@ from .split_comparer_entity import SplitComparerEntity
 from .split_entity import Split
 
 split_comparer_router = APIRouter()
-template_list = Jinja2Templates(directory='frontend/html')
+template_list = Jinja2Templates(directory='../frontend')
 
 
 @split_comparer_router.get(
@@ -66,14 +66,14 @@ async def compare_split(
     map_url = __get_map_url(db, competition_1)
 
     render = template_list.TemplateResponse(
-        'split.html',
+        'html/split_mobile.html',
         {
             'request': request,
             'event': event.name,
             'description': competition_1.description,
             'date': competition_1.date,
-            'competitor_1': split_1.person,
-            'competitor_2': split_2.person,
+            'competitor_1': split_1.person.replace(' ', '\n'),
+            'competitor_2': split_2.person.replace(' ', '\n'),
             'data': data,
             'map_url': map_url
         }

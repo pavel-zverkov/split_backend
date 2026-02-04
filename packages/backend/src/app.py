@@ -22,9 +22,8 @@ app.include_router(event_router)
 app.include_router(split_comparer_router)
 app.include_router(artifact_router)
 
-app.mount("/css", StaticFiles(directory="frontend/css"), name="css")
-app.mount("/java_script", StaticFiles(directory="frontend/java_script"),
-          name="java_script")
+app.mount("/css", StaticFiles(directory="../frontend/css"), name="css")
+app.mount("/java_script", StaticFiles(directory="../frontend/java_script"), name="java_script")
 
 
 @app.get("/")
