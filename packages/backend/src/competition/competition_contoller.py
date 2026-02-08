@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..logger import logger
 from . import competition_crud
-from .competition_pydantic_model import Competition, CompetitionCreate
+from .competition_schema import Competition, CompetitionCreate
 
 competition_router = APIRouter()
 

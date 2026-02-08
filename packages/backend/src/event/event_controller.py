@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..logger import logger
 from . import event_crud
-from .event_pydantic_model import Event, EventCreate
+from .event_schema import Event, EventCreate
 
 event_router = APIRouter()
 

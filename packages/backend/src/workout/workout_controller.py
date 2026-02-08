@@ -7,9 +7,9 @@ from ..logger import logger
 from ..relations.user_competition_relation_crud import create_user_competition_relation
 from ..relations.user_event_relation_crud import create_user_event_relation
 from ..user.user_crud import create_user, get_user_by_name
-from ..user.user_pydantic_model import UserCreate
+from ..user.user_schema import UserCreate
 from . import workout_crud
-from .workout_pydantic_model import (Workout,
+from .workout_schema import (Workout,
                                      WorkoutCreate,
                                      WorkoutCreateByUser)
 

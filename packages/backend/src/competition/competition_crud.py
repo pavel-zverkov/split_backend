@@ -2,8 +2,8 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from .competition_orm_model import Competition
-from .competition_pydantic_model import CompetitionCreate
+from .competition_model import Competition
+from .competition_schema import CompetitionCreate
 
 
 def get_competition(db: Session, id: int) -> Competition | None:

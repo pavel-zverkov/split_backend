@@ -2,8 +2,8 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from .orient_map_orm_model import OrientMap as ORMomap
-from .orient_map_pydantic_model import OrientMap, OrientMapCreate
+from .orient_map_model import OrientMap as ORMomap
+from .orient_map_schema import OrientMap, OrientMapCreate
 from ....logger import logger
 
 # def get_user(db: Session, mobile_number: str) -> None:

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime, time
 
-from ..competition.competition_orm_model import Competition
+from ..competition.competition_model import Competition
 from .split_control_point import ControlPoint
 
 

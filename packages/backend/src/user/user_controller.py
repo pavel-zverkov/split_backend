@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..user import user_crud
-from ..user.user_pydantic_model import User, UserCreate
+from ..user.user_schema import User, UserCreate
 
 user_router = APIRouter()
 

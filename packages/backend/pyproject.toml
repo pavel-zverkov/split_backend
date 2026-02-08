@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "backend"
+name = "split_api"
 version = "0.1.0"
 description = ""
 authors = ["pzverkov <pavelzverkov1@gmail.com>"]

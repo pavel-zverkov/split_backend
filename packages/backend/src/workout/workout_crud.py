@@ -2,9 +2,9 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from ..competition.competition_orm_model import Competition
-from .workout_orm_model import Workout
-from .workout_pydantic_model import WorkoutCreate
+from ..competition.competition_model import Competition
+from .workout_model import Workout
+from .workout_schema import WorkoutCreate
 
 
 def get_workout_by_event(

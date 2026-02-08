@@ -2,9 +2,9 @@ from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
-from ..enums.enum_status import Status
-from .event_orm_model import Event
-from .event_pydantic_model import EventCreate
+from ..enums.event_status import EventStatus
+from .event_model import Event
+from .event_schema import EventCreate
 
 
 def get_event(db: Session, event_id: int) -> Event | None:
@@ -38,12 +38,12 @@ def create_event(
     return db_event
 
 
-def __get_status(start_date: date, end_date: date) -> Status:
+def __get_status(start_date: date, end_date: date) -> EventStatus:
     NOW = datetime.now()
     if NOW.date() > end_date:
-        return Status.CLOSED
+        return EventStatus.FINISHED
     elif NOW.date() >= start_date and NOW.date() <= end_date:
-        return Status.IN_PROGRESS
-    return Status.PLANNED
+        return EventStatus.IN_PROGRESS
+    return EventStatus.PLANNED
 
 # TODO: update_event, delete_event

@@ -2,8 +2,8 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from .artifact_orm_model import Artifact
-from .artifact_pydantic_model import ArtifactCreate
+from .artifact_model import Artifact
+from .artifact_schema import ArtifactCreate
 
 
 from .orient.maps.orient_map_crud import create_omap

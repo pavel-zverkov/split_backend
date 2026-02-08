@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from ..maps import orient_map_crud
-from ..maps.orient_map_pydantic_model import OrientMap, OrientMapCreate
+from ..maps.orient_map_schema import OrientMap, OrientMapCreate
 
 
 async def read_omap(omap_id: int, db: Session):

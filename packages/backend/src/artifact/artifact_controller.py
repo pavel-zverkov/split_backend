@@ -7,21 +7,21 @@ import requests
 from sqlalchemy.orm import Session
 
 
-from ..competition.competition_pydantic_model import Competition
-from ..event.event_pydantic_model import Event
+from ..competition.competition_schema import Competition
+from ..event.event_schema import Event
 
 from ..artifact.orient.maps.orient_map_controller import create_omap
-from ..artifact.orient.maps.orient_map_pydantic_model import OrientMapCreate
+from ..artifact.orient.maps.orient_map_schema import OrientMapCreate
 
 from ..database.minio_integration import get_minio_client
 from ..competition.competition_crud import get_competition
 from ..event.event_crud import get_event
-from ..enums.enum_artifact_kind import ArtifactKind
+from ..enums.artifact_kind import ArtifactKind
 
 from ..database import get_db
 from ..logger import logger
 from . import artifact_crud
-from .artifact_pydantic_model import Artifact, ArtifactCreate
+from .artifact_schema import Artifact, ArtifactCreate
 
 BUCKET_NAME = 'event-artifacts'
 

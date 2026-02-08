@@ -2,8 +2,8 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from .user_orm_model import User
-from .user_pydantic_model import UserCreate
+from .user_model import User
+from .user_schema import UserCreate
 
 # def get_user(db: Session, mobile_number: str) -> None:
 #     return db.query(User).filter(User.mobile_number == mobile_number).first()
