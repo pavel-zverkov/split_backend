@@ -1,0 +1,574 @@
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.orm import Session
+
+from ..database import get_db
+from ..auth.auth_service import get_current_user, get_current_user_optional
+from ..user.user_model import User
+from ..user import user_crud
+from ..enums.event_status import EventStatus
+from ..enums.event_role import EventRole
+from ..enums.event_position import EventPosition
+from ..enums.privacy import Privacy
+from ..enums.sport_kind import SportKind
+from . import event_crud
+from .event_schema import (
+    EventCreate,
+    EventUpdate,
+    EventResponse,
+    EventDetailResponse,
+    EventListItem,
+    EventListResponse,
+    EventOrganizerBrief,
+    TeamMemberItem,
+    TeamMemberUserBrief,
+    TeamListResponse,
+    AddTeamMemberRequest,
+    TeamMemberResponse,
+    UpdateTeamMemberRequest,
+    TransferOwnershipRequest,
+    TransferOwnershipResponse,
+)
+
+event_router = APIRouter(prefix='/api/events', tags=['events'])
+
+
+@event_router.post('', response_model=EventResponse, status_code=status.HTTP_201_CREATED)
+async def create_event(
+    data: EventCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new event. Creator becomes chief organizer."""
+    # Validate status - only draft or planned allowed at creation
+    if data.status not in [EventStatus.DRAFT, EventStatus.PLANNED]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Status must be draft or planned at creation'
+        )
+
+    event = event_crud.create_event(db, data, current_user.id)
+
+    return EventResponse(
+        id=event.id,
+        name=event.name,
+        description=event.description,
+        start_date=event.start_date,
+        end_date=event.end_date,
+        location=event.location,
+        sport_kind=event.sport_kind,
+        privacy=event.privacy,
+        status=event.status,
+        max_participants=event.max_participants,
+        organizer_id=event.organizer_id,
+        competitions_count=0,
+        team_count=1,
+        participants_count=0,
+        created_at=event.created_at,
+    )
+
+
+@event_router.get('/{event_id}', response_model=EventDetailResponse)
+async def get_event(
+    event_id: int,
+    current_user: User | None = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """Get event details."""
+    event = event_crud.get_event_by_id(db, event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Event not found'
+        )
+
+    # Check visibility for draft events
+    if event.status == EventStatus.DRAFT:
+        if not current_user or not event_crud.is_team_member(db, current_user.id, event_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail='Event not found'
+            )
+
+    competitions_count = event_crud.get_competitions_count(db, event_id)
+    team_count = event_crud.get_team_count(db, event_id)
+    participants_count = event_crud.get_participants_count(db, event_id)
+
+    # Get user's role if authenticated
+    my_role = None
+    my_position = None
+    if current_user:
+        participation = event_crud.get_participation(db, current_user.id, event_id)
+        if participation and participation.status.value == 'approved':
+            my_role = participation.role
+            my_position = participation.position
+
+    return EventDetailResponse(
+        id=event.id,
+        name=event.name,
+        description=event.description,
+        start_date=event.start_date,
+        end_date=event.end_date,
+        location=event.location,
+        sport_kind=event.sport_kind,
+        privacy=event.privacy,
+        status=event.status,
+        max_participants=event.max_participants,
+        organizer=EventOrganizerBrief(
+            id=event.organizer.id,
+            username_display=event.organizer.username_display,
+            first_name=event.organizer.first_name,
+        ),
+        competitions_count=competitions_count,
+        participants_count=participants_count,
+        team_count=team_count,
+        my_role=my_role,
+        my_position=my_position,
+        created_at=event.created_at,
+    )
+
+
+@event_router.get('', response_model=EventListResponse)
+async def list_events(
+    q: str | None = Query(None, description='Search query'),
+    sport_kind: SportKind | None = Query(None, description='Filter by sport kind'),
+    event_status: EventStatus | None = Query(None, alias='status', description='Filter by status'),
+    privacy: Privacy | None = Query(None, description='Filter by privacy'),
+    start_date_from: date | None = Query(None, description='Start date from'),
+    start_date_to: date | None = Query(None, description='Start date to'),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: User | None = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """List and search events."""
+    current_user_id = current_user.id if current_user else None
+    events, total = event_crud.search_events(
+        db,
+        query=q,
+        sport_kind=sport_kind,
+        status=event_status,
+        privacy=privacy,
+        start_date_from=start_date_from,
+        start_date_to=start_date_to,
+        current_user_id=current_user_id,
+        limit=limit,
+        offset=offset
+    )
+
+    event_items = []
+    for event in events:
+        competitions_count = event_crud.get_competitions_count(db, event.id)
+        participants_count = event_crud.get_participants_count(db, event.id)
+
+        my_role = None
+        if current_user:
+            participation = event_crud.get_participation(db, current_user.id, event.id)
+            if participation and participation.status.value == 'approved':
+                my_role = participation.role
+
+        event_items.append(EventListItem(
+            id=event.id,
+            name=event.name,
+            start_date=event.start_date,
+            end_date=event.end_date,
+            location=event.location,
+            sport_kind=event.sport_kind,
+            privacy=event.privacy,
+            status=event.status,
+            competitions_count=competitions_count,
+            participants_count=participants_count,
+            my_role=my_role,
+        ))
+
+    return EventListResponse(
+        events=event_items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@event_router.patch('/{event_id}', response_model=EventDetailResponse)
+async def update_event(
+    event_id: int,
+    data: EventUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update event. Only organizer or chief secretary can update."""
+    event = event_crud.get_event_by_id(db, event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Event not found'
+        )
+
+    # Check permissions
+    if not event_crud.can_update_event(db, current_user.id, event_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Only organizer or chief secretary can update event'
+        )
+
+    # Validate status transition
+    if data.status and not event_crud.is_valid_status_transition(event.status, data.status):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f'Invalid status transition from {event.status.value} to {data.status.value}'
+        )
+
+    updated_event = event_crud.update_event(db, event, data)
+
+    competitions_count = event_crud.get_competitions_count(db, event_id)
+    team_count = event_crud.get_team_count(db, event_id)
+    participants_count = event_crud.get_participants_count(db, event_id)
+
+    participation = event_crud.get_participation(db, current_user.id, event_id)
+
+    return EventDetailResponse(
+        id=updated_event.id,
+        name=updated_event.name,
+        description=updated_event.description,
+        start_date=updated_event.start_date,
+        end_date=updated_event.end_date,
+        location=updated_event.location,
+        sport_kind=updated_event.sport_kind,
+        privacy=updated_event.privacy,
+        status=updated_event.status,
+        max_participants=updated_event.max_participants,
+        organizer=EventOrganizerBrief(
+            id=updated_event.organizer.id,
+            username_display=updated_event.organizer.username_display,
+            first_name=updated_event.organizer.first_name,
+        ),
+        competitions_count=competitions_count,
+        participants_count=participants_count,
+        team_count=team_count,
+        my_role=participation.role if participation else None,
+        my_position=participation.position if participation else None,
+        created_at=updated_event.created_at,
+    )
+
+
+@event_router.delete('/{event_id}', status_code=status.HTTP_204_NO_CONTENT)
+async def delete_event(
+    event_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete event. Only chief organizer can delete."""
+    event = event_crud.get_event_by_id(db, event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Event not found'
+        )
+
+    # Only chief organizer can delete
+    if not event_crud.is_chief_organizer(db, current_user.id, event_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Only chief organizer can delete event'
+        )
+
+    # Cannot delete if in progress
+    if event.status == EventStatus.IN_PROGRESS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Cannot delete event in progress'
+        )
+
+    event_crud.delete_event(db, event)
+    return None
+
+
+@event_router.get('/{event_id}/team', response_model=TeamListResponse)
+async def get_team_members(
+    event_id: int,
+    role: EventRole | None = Query(None, description='Filter by role'),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: User | None = Depends(get_current_user_optional),
+    db: Session = Depends(get_db)
+):
+    """List event team members."""
+    event = event_crud.get_event_by_id(db, event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Event not found'
+        )
+
+    # Check visibility for draft events
+    if event.status == EventStatus.DRAFT:
+        if not current_user or not event_crud.is_team_member(db, current_user.id, event_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail='Event not found'
+            )
+
+    # Validate role is a team role
+    if role and role not in event_crud.TEAM_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Invalid team role. Use participant/spectator endpoints for athletes.'
+        )
+
+    members, total = event_crud.get_team_members(db, event_id, role=role, limit=limit, offset=offset)
+
+    team_items = []
+    for m in members:
+        user = m.user
+        team_items.append(TeamMemberItem(
+            id=m.id,
+            user=TeamMemberUserBrief(
+                id=user.id,
+                username_display=user.username_display,
+                first_name=user.first_name,
+                last_name=f"{user.last_name[0]}." if user.last_name else None,
+                logo=user.logo,
+            ),
+            role=m.role,
+            position=m.position,
+            joined_at=m.joined_at,
+        ))
+
+    return TeamListResponse(
+        team=team_items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@event_router.post('/{event_id}/team', response_model=TeamMemberResponse, status_code=status.HTTP_201_CREATED)
+async def add_team_member(
+    event_id: int,
+    data: AddTeamMemberRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Add a team member to event."""
+    event = event_crud.get_event_by_id(db, event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Event not found'
+        )
+
+    # Only organizer can add team members
+    if not event_crud.is_organizer(db, current_user.id, event_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Only organizer can add team members'
+        )
+
+    # Validate role is a team role
+    if data.role not in event_crud.TEAM_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Invalid team role. Use participant/spectator endpoints for athletes.'
+        )
+
+    # Check user exists
+    target_user = user_crud.get_user_by_id(db, data.user_id)
+    if not target_user or not target_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='User not found'
+        )
+
+    # Check if already a team member
+    existing = event_crud.get_participation(db, data.user_id, event_id)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='User is already a participant in this event'
+        )
+
+    # Check if chief already exists for this role
+    if data.position == EventPosition.CHIEF:
+        existing_chief = event_crud.get_chief_for_role(db, event_id, data.role)
+        if existing_chief:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f'Chief already exists for role {data.role.value}'
+            )
+
+    participation = event_crud.create_team_member(db, data.user_id, event_id, data.role, data.position)
+
+    return TeamMemberResponse(
+        id=participation.id,
+        user_id=participation.user_id,
+        event_id=participation.event_id,
+        role=participation.role,
+        position=participation.position,
+        status=participation.status,
+        joined_at=participation.joined_at,
+    )
+
+
+@event_router.patch('/{event_id}/team/{user_id}', response_model=TeamMemberResponse)
+async def update_team_member(
+    event_id: int,
+    user_id: int,
+    data: UpdateTeamMemberRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update a team member's role or position."""
+    event = event_crud.get_event_by_id(db, event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Event not found'
+        )
+
+    # Only organizer can update team members
+    if not event_crud.is_organizer(db, current_user.id, event_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Only organizer can update team members'
+        )
+
+    participation = event_crud.get_participation(db, user_id, event_id)
+    if not participation or participation.role not in event_crud.TEAM_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Team member not found'
+        )
+
+    # Cannot change chief organizer's role
+    if participation.role == EventRole.ORGANIZER and participation.position == EventPosition.CHIEF:
+        if data.role and data.role != EventRole.ORGANIZER:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Cannot change chief organizer role. Use transfer ownership.'
+            )
+
+    # Validate new role is a team role
+    if data.role and data.role not in event_crud.TEAM_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Invalid team role'
+        )
+
+    # Check if chief already exists for target role
+    target_role = data.role or participation.role
+    if data.position == EventPosition.CHIEF:
+        existing_chief = event_crud.get_chief_for_role(db, event_id, target_role)
+        if existing_chief and existing_chief.id != participation.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f'Chief already exists for role {target_role.value}'
+            )
+
+    updated = event_crud.update_team_member(db, participation, data.role, data.position)
+
+    return TeamMemberResponse(
+        id=updated.id,
+        user_id=updated.user_id,
+        event_id=updated.event_id,
+        role=updated.role,
+        position=updated.position,
+        status=updated.status,
+        joined_at=updated.joined_at,
+    )
+
+
+@event_router.delete('/{event_id}/team/{user_id}', status_code=status.HTTP_204_NO_CONTENT)
+async def remove_team_member(
+    event_id: int,
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Remove a team member from event."""
+    event = event_crud.get_event_by_id(db, event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Event not found'
+        )
+
+    # Only organizer can remove team members
+    if not event_crud.is_organizer(db, current_user.id, event_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Only organizer can remove team members'
+        )
+
+    participation = event_crud.get_participation(db, user_id, event_id)
+    if not participation or participation.role not in event_crud.TEAM_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Team member not found'
+        )
+
+    # Cannot remove yourself
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Cannot remove yourself from team'
+        )
+
+    # Cannot remove chief organizer
+    if participation.role == EventRole.ORGANIZER and participation.position == EventPosition.CHIEF:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Cannot remove chief organizer. Transfer ownership first.'
+        )
+
+    event_crud.delete_participation(db, participation)
+    return None
+
+
+@event_router.post('/{event_id}/transfer-ownership', response_model=TransferOwnershipResponse)
+async def transfer_ownership(
+    event_id: int,
+    request: TransferOwnershipRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Transfer event ownership to another team member."""
+    event = event_crud.get_event_by_id(db, event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Event not found'
+        )
+
+    # Only chief organizer can transfer
+    if not event_crud.is_chief_organizer(db, current_user.id, event_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Only chief organizer can transfer ownership'
+        )
+
+    # Cannot transfer to self
+    if request.new_organizer_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Cannot transfer ownership to yourself'
+        )
+
+    # New organizer must be a team member
+    new_organizer = event_crud.get_participation(db, request.new_organizer_id, event_id)
+    if not new_organizer or new_organizer.role not in event_crud.TEAM_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='New organizer must be a team member'
+        )
+
+    old_organizer = event_crud.get_participation(db, current_user.id, event_id)
+
+    updated_event = event_crud.transfer_ownership(db, event, old_organizer, new_organizer)
+
+    return TransferOwnershipResponse(
+        id=updated_event.id,
+        name=updated_event.name,
+        organizer_id=updated_event.organizer_id,
+        message='Ownership transferred successfully'
+    )

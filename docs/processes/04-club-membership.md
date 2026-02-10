@@ -3,6 +3,7 @@
 | # | Endpoint | Method | Description |
 |---|----------|--------|-------------|
 | 4.1 | `/api/clubs/{club_id}/join` | POST | Join club |
+| 4.1b | `/api/clubs/{club_id}/members` | POST | Add member (admin) |
 | 4.2 | `/api/clubs/{club_id}/members/{membership_id}` | PATCH | Approve/reject membership |
 | 4.3 | `/api/clubs/{club_id}/members/me` | DELETE | Leave club |
 | 4.4 | `/api/clubs/{club_id}/members/{user_id}` | DELETE | Remove member |
@@ -38,6 +39,48 @@
 **Errors:**
 - `400` - Already a member or previous request was rejected
 - `404` - Club not found
+
+## 4.1b Add Member (Admin)
+
+**Endpoint:** `POST /api/clubs/{club_id}/members`
+
+**Authorization:** Owner or Coach
+
+**Purpose:** Add a user directly to the club. Useful for adding ghost users.
+
+**Request:**
+```json
+{
+  "user_id": 15,
+  "role": "member"
+}
+```
+
+**Role values:** `coach`, `member` (cannot set `owner` - use transfer ownership)
+
+**Flow:**
+1. Verify caller is owner or coach
+2. Verify target user exists
+3. Verify user is not already a member
+4. Create membership with `status=active` (immediate join)
+
+**Response:** `201 Created`
+```json
+{
+  "id": 1,
+  "user_id": 15,
+  "club_id": 10,
+  "role": "member",
+  "status": "active",
+  "joined_at": "2024-01-15T10:00:00Z",
+  "created_at": "2024-01-15T10:00:00Z"
+}
+```
+
+**Errors:**
+- `400` - User already a member, or trying to set owner role
+- `403` - Caller is not owner or coach
+- `404` - Club or user not found
 
 ## 4.2 Approve/Reject Membership Request
 

@@ -3,6 +3,7 @@
 | # | Endpoint | Method | Description |
 |---|----------|--------|-------------|
 | 9.1 | `/api/competitions/{competition_id}/register` | POST | Register for competition |
+| 9.1b | `/api/competitions/{competition_id}/registrations` | POST | Add registration (organizer) |
 | 9.2 | `/api/competitions/{competition_id}/registrations/me` | GET | Get my registration |
 | 9.3 | `/api/competitions/{competition_id}/registrations` | GET | List registrations |
 | 9.4 | `/api/competitions/{competition_id}/start-list` | GET | Get start list |
@@ -93,6 +94,53 @@ rejected ──► (can re-apply) ──► pending
 - `400` - Registration closed (competition started with non-free format)
 - `403` - No approved event participation
 - `403` - Previous request rejected (can re-apply)
+
+## 9.1b Add Registration (Organizer)
+
+**Endpoint:** `POST /api/competitions/{competition_id}/registrations`
+
+**Authorization:** Organizer or Secretary
+
+**Purpose:** Add a registration for a user directly. Useful for adding ghost users.
+
+**Request:**
+```json
+{
+  "user_id": 15,
+  "class": "M21",
+  "bib_number": "101",
+  "start_time": "2024-06-15T10:30:00Z"
+}
+```
+
+**Flow:**
+1. Verify caller is organizer or secretary
+2. Verify target user exists
+3. Verify user is not already registered
+4. Validate class is in `class_list`
+5. Validate bib_number is unique (if provided)
+6. Create registration with `status=registered`
+
+**Response:** `201 Created`
+```json
+{
+  "id": 10,
+  "user_id": 15,
+  "competition_id": 1,
+  "class": "M21",
+  "bib_number": "101",
+  "start_time": "2024-06-15T10:30:00Z",
+  "status": "registered",
+  "created_at": "2024-01-20T10:00:00Z"
+}
+```
+
+**Errors:**
+- `400` - User already registered for this competition
+- `400` - Invalid class (not in class_list)
+- `400` - Bib number already assigned
+- `403` - Caller is not organizer or secretary
+- `404` - Competition or user not found
 
 ## 9.2 Get My Registration
 

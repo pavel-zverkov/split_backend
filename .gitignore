@@ -7,5 +7,8 @@ __pycache__/
 *.env
 
 # Database
-packages/postgres/data
-packages/minio/data
+postgres/data
+minio/data
+
+# vscode
+.vscode/

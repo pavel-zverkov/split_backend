@@ -8,14 +8,14 @@ FastAPI backend for an orienteering competition analysis platform. Core features
 
 ## Development Commands
 
-All commands run from `/packages/backend/`:
+All commands run from project root `/`:
 
 ```bash
-# Start infrastructure (PostgreSQL + MinIO)
-docker-compose -f ../../docker/docker-compose.yaml up -d
+# Start infrastructure (PostgreSQL)
+docker-compose up -d
 
 # Run dev server with hot reload
-uvicorn src.app:app --reload --reload-include="*.html" --reload-include="*.css" --reload-include="*.js"
+uvicorn app.main:app --reload
 
 # Full restart (destroys PostgreSQL data)
 make restart_dev_server
@@ -29,13 +29,43 @@ alembic downgrade -1
 poetry install
 
 # Run tests
-pytest
+pytest tests/ -v
 pytest tests/test_module.py::test_function -v
 
 # Linting/type checking
-pylint src/
-mypy src/
-isort src/
+pylint app/
+mypy app/
+isort app/
+```
+
+## Project Structure
+
+```
+split_backend/
+├── app/                      # Application code
+│   ├── main.py              # FastAPI entry point
+│   ├── config.py            # Configuration
+│   ├── logger.py            # Logging setup
+│   ├── database/            # SQLAlchemy setup, MinIO integration
+│   ├── auth/                # Authentication
+│   ├── user/                # User management
+│   ├── workout/             # Training sessions with splits
+│   ├── competition/         # Competition metadata
+│   ├── event/               # Event organization
+│   ├── result/              # Competition results
+│   ├── artifact/            # File storage, O-Maps
+│   ├── club/                # Club management
+│   ├── split_comparer/      # Core feature: split time comparison
+│   └── enums/               # Enumeration types
+├── tests/                   # Test files
+├── migrations/              # Alembic migrations
+├── init-scripts/            # PostgreSQL init scripts
+├── docker-compose.yaml      # Docker configuration
+├── Dockerfile               # Container build
+├── pyproject.toml           # Poetry dependencies
+├── alembic.ini              # Alembic configuration
+├── makefile                 # Development shortcuts
+└── .env                     # Environment variables
 ```
 
 ## Architecture
@@ -45,49 +75,38 @@ isort src/
 Each domain module follows this pattern:
 ```
 domain/
-  ├── domain_controller.py      # FastAPI router
-  ├── domain_crud.py            # Database operations
-  ├── domain_orm_model.py       # SQLAlchemy model
-  ├── domain_pydantic_model.py  # Pydantic schemas
-  └── domain_entity.py          # Business logic (optional)
+  ├── domain_controller.py    # FastAPI router
+  ├── domain_crud.py          # Database operations
+  ├── domain_model.py         # SQLAlchemy model
+  ├── domain_schema.py        # Pydantic schemas
+  └── domain_entity.py        # Business logic (optional)
 ```
-
-### Core Modules (packages/backend/src/)
-
-- **split_comparer/** - Core feature: compares runner split times on same course
-- **user/** - User management
-- **workout/** - Training sessions with split data
-- **competition/** - Competition metadata
-- **event/** - Event organization
-- **artifact/** - File storage, O-Maps via MinIO
-- **relations/** - User-Competition/Event many-to-many relationships
-- **database/** - SQLAlchemy setup, MinIO integration
 
 ### Data Flow
 
 ```
 FastAPI Router (controller)
     → CRUD functions (crud.py)
-    → SQLAlchemy ORM (orm_model.py)
+    → SQLAlchemy ORM (model.py)
     → PostgreSQL/MinIO
 ```
 
 ### Infrastructure
 
-- **PostgreSQL 15 + PostGIS** (port 5432) - Relational data with geospatial support
-- **MinIO** (ports 9000/9001) - Object storage for maps and GPS files
-- Both configured via `docker/docker-compose.yaml`
+- **PostgreSQL 16 + PostGIS** (port 5432) - Relational data with geospatial support
+- **MinIO** (ports 9000/9001) - Object storage for maps and GPS files (optional)
+- Configured via `docker-compose.yaml`
 
 ### Key Patterns
 
 - Dependency injection: `db: Session = Depends(get_db)`
-- Config singleton: `from src.config import Config`
-- Logging: `from src.logger import logger`
+- Config singleton: `from app.config import Config`
+- Logging: `from app.logger import logger`
 - Artifacts stored as: `{event_name}/{date}/{competition_name}/{file_name}`
 
 ## Environment
 
-Configuration in `/packages/backend/.env`:
+Configuration in `.env`:
 - PostgreSQL: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
 - MinIO: `MINIO_HOST`, `MINIO_PORT`, `ACCESS_KEY`, `SECRET_KEY`
 - `LOG_LEVEL` controls loguru output

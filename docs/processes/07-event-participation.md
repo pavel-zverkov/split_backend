@@ -3,6 +3,7 @@
 | # | Endpoint | Method | Description |
 |---|----------|--------|-------------|
 | 7.1 | `/api/events/{event_id}/join` | POST | Join event (athlete or team) |
+| 7.1b | `/api/events/{event_id}/participants` | POST | Add participant (organizer) |
 | 7.2 | `/api/events/{event_id}/participants` | GET | List participants (athletes) |
 | 7.3 | `/api/events/{event_id}/requests` | GET | List join requests |
 | 7.4 | `/api/events/{event_id}/requests/{participation_id}` | PATCH | Approve/reject request |
@@ -147,6 +148,50 @@ flowchart TD
 - Event must be in `registration_open` or `in_progress` status
 - Can only register for competitions with status `planned` (not yet started)
 - Can use `competition_ids: "all"` to register for all upcoming competitions
+
+## 7.1b Add Participant (Organizer)
+
+**Endpoint:** `POST /api/events/{event_id}/participants`
+
+**Authorization:** Organizer only
+
+**Purpose:** Add a user directly to the event. Useful for adding ghost users.
+
+**Request:**
+```json
+{
+  "user_id": 15,
+  "role": "participant",
+  "position": null
+}
+```
+
+**Role values:** `secretary`, `judge`, `volunteer`, `participant` (cannot set `organizer` - use transfer ownership)
+
+**Flow:**
+1. Verify caller is organizer
+2. Verify target user exists
+3. Verify user is not already participating
+4. Create participation with `status=approved` (immediate join)
+
+**Response:** `201 Created`
+```json
+{
+  "id": 1,
+  "user_id": 15,
+  "event_id": 1,
+  "role": "participant",
+  "position": null,
+  "status": "approved",
+  "joined_at": "2024-01-15T10:00:00Z",
+  "created_at": "2024-01-15T10:00:00Z"
+}
+```
+
+**Errors:**
+- `400` - User already participating, or trying to set organizer role
+- `403` - Caller is not organizer
+- `404` - Event or user not found
 
 ## 7.2 List Participants
 
