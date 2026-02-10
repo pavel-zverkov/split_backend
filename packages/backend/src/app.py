@@ -3,6 +3,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .auth.auth_controller import auth_router
 from .competition.competition_contoller import competition_router
+from .competition.registration_controller import registration_router
 from .database import (Base,
                        engine,
                        tables)
@@ -29,6 +30,7 @@ app.include_router(follow_router)
 app.include_router(qualification_router)
 app.include_router(workout_router)
 app.include_router(competition_router)
+app.include_router(registration_router)
 app.include_router(event_router)
 app.include_router(participation_router)
 app.include_router(club_router)
