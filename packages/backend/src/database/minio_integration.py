@@ -11,7 +11,7 @@ _minio_client = Minio(
     secure=False
 )
 
-logger.success(f'Connected to minio {Config.MINIO_HOST}:{Config.MINIO_PORT}')
+logger.info(f'MinIO client configured for {Config.MINIO_HOST}:{Config.MINIO_PORT}')
 
 
 def get_minio_client() -> Minio:

@@ -10,8 +10,12 @@ from .event.event_controller import event_router
 from .split_comparer.split_comparer_controller import split_comparer_router
 from .user.user_controller import user_router
 from .user.claim_request_controller import claim_request_router
+from .user.follow_controller import follow_router
+from .user.qualification_controller import qualification_router
 from .workout.workout_controller import workout_router
 from .artifact.artifact_controller import artifact_router
+from .club.club_controller import club_router
+from .club.club_membership_controller import club_membership_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -20,9 +24,13 @@ app = FastAPI()
 app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(claim_request_router)
+app.include_router(follow_router)
+app.include_router(qualification_router)
 app.include_router(workout_router)
 app.include_router(competition_router)
 app.include_router(event_router)
+app.include_router(club_router)
+app.include_router(club_membership_router)
 app.include_router(split_comparer_router)
 app.include_router(artifact_router)
 
