@@ -15,7 +15,9 @@ from .user.claim_request_controller import claim_request_router
 from .user.follow_controller import follow_router
 from .user.qualification_controller import qualification_router
 from .workout.workout_controller import workout_router
+from .workout.workout_split_controller import split_router
 from .artifact.artifact_controller import artifact_router
+from .result.result_controller import result_router
 from .club.club_controller import club_router
 from .club.club_membership_controller import club_membership_router
 
@@ -29,6 +31,7 @@ app.include_router(claim_request_router)
 app.include_router(follow_router)
 app.include_router(qualification_router)
 app.include_router(workout_router)
+app.include_router(split_router)
 app.include_router(competition_router)
 app.include_router(registration_router)
 app.include_router(event_router)
@@ -37,6 +40,7 @@ app.include_router(club_router)
 app.include_router(club_membership_router)
 app.include_router(split_comparer_router)
 app.include_router(artifact_router)
+app.include_router(result_router)
 
 app.mount("/css", StaticFiles(directory="../frontend/css"), name="css")
 app.mount("/java_script", StaticFiles(directory="../frontend/java_script"), name="java_script")
