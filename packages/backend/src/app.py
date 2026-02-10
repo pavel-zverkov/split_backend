@@ -7,6 +7,7 @@ from .database import (Base,
                        engine,
                        tables)
 from .event.event_controller import event_router
+from .event.event_participation_controller import participation_router
 from .split_comparer.split_comparer_controller import split_comparer_router
 from .user.user_controller import user_router
 from .user.claim_request_controller import claim_request_router
@@ -29,6 +30,7 @@ app.include_router(qualification_router)
 app.include_router(workout_router)
 app.include_router(competition_router)
 app.include_router(event_router)
+app.include_router(participation_router)
 app.include_router(club_router)
 app.include_router(club_membership_router)
 app.include_router(split_comparer_router)

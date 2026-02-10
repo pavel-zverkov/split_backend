@@ -7,8 +7,8 @@ import requests
 from sqlalchemy.orm import Session
 
 
-from ..competition.competition_schema import Competition
-from ..event.event_schema import Event
+from ..competition.competition_model import Competition
+from ..event.event_model import Event
 
 from ..artifact.orient.maps.orient_map_controller import create_omap
 from ..artifact.orient.maps.orient_map_schema import OrientMapCreate

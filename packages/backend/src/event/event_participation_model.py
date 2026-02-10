@@ -35,7 +35,7 @@ class EventParticipation(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    event_id = Column(Integer, ForeignKey('events.id'), nullable=False)
+    event_id = Column(Integer, ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
     role = Column(Enum(EventRole), nullable=False)
     position = Column(Enum(EventPosition), nullable=True)
     status = Column(Enum(ParticipationStatus), nullable=False, default=ParticipationStatus.PENDING)
