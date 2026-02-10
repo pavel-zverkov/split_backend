@@ -21,7 +21,7 @@ from ..event.event_crud import get_event
 from ..event.event_model import Event
 from ..logger import logger
 from ..split_comparer.split_control_point import ControlPoint
-from ..user.user_crud import get_user
+from ..user.user_crud import get_user_by_id
 from ..user.user_model import User
 from ..workout.workout_crud import get_workout_by_event
 from ..workout.workout_model import Workout
@@ -150,7 +150,7 @@ def _get_workout_by_event(
 
 
 def _get_user(db: Session, user_id: int) -> User:
-    user = get_user(db, user_id)
+    user = get_user_by_id(db, user_id)
     if not user:
         raise HTTPException(
             status_code=404, detail=f'User with id={user_id} not found')
