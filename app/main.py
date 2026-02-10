@@ -1,5 +1,8 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from loguru import logger
 
 from .auth.auth_controller import auth_router
 from .competition.competition_contoller import competition_router
@@ -23,7 +26,23 @@ from .club.club_membership_controller import club_membership_router
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Split App API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan handler."""
+    # Startup
+    try:
+        from .database.minio_service import init_buckets
+        init_buckets()
+        logger.info('MinIO buckets initialized')
+    except Exception as e:
+        logger.warning(f'MinIO initialization failed: {e}. File uploads will not work.')
+
+    yield
+    # Shutdown (nothing to clean up)
+
+
+app = FastAPI(title="Split App API", version="1.0.0", lifespan=lifespan)
 
 app.include_router(auth_router)
 app.include_router(user_router)

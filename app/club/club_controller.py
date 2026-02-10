@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -212,6 +212,7 @@ async def update_club(
 @club_router.post('/{club_id}/logo', response_model=ClubLogoResponse)
 async def upload_club_logo(
     club_id: int,
+    file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -230,12 +231,29 @@ async def upload_club_logo(
             detail='Only owner or coach can upload logo'
         )
 
-    # TODO: Implement file upload to MinIO
-    # For now, return a placeholder
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail='Logo upload not yet implemented'
-    )
+    # Validate file type
+    allowed_types = ['image/jpeg', 'image/png', 'image/webp']
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='File must be JPEG, PNG, or WebP image'
+        )
+
+    # Validate file size (5MB)
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='File size must be less than 5MB'
+        )
+
+    # Upload to MinIO
+    from ..database.minio_service import upload_club_logo
+    logo_url = upload_club_logo(club_id, contents, file.content_type)
+    club.logo = logo_url
+    db.commit()
+
+    return ClubLogoResponse(logo=logo_url)
 
 
 @club_router.get('/{club_id}/members', response_model=ClubMembersResponse)
@@ -333,7 +351,18 @@ async def delete_club(
             detail='Only club owner can delete the club'
         )
 
-    # TODO: Notify all active members about deletion
+    # Delete logo from MinIO if exists
+    if club.logo:
+        from ..database.minio_service import delete_club_logo
+        delete_club_logo(club_id)
+
+    # Get members before deletion for notification
+    from ..logger import logger
+    members = club_crud.get_active_members(db, club_id)
+    member_ids = [m.user_id for m in members if m.user_id != current_user.id]
+    if member_ids:
+        logger.info(f'Club {club.name} deleted. Notify members: {member_ids}')
+        # Future: Send push notifications / emails to member_ids
 
     club_crud.delete_club(db, club)
     return None

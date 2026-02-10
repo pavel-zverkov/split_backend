@@ -15,6 +15,7 @@ from ..database.minio_integration import get_minio_client
 from ..enums.artifact_kind import ArtifactKind
 
 from ..competition.competition_crud import get_competition
+from ..competition.registration_crud import get_registration_by_user
 from ..competition.competition_model import Competition
 from ..database import get_db
 from ..event.event_crud import get_event
@@ -57,8 +58,8 @@ async def compare_split(
     competition_1 = _get_competition(db, workout_1)
     competition_2 = _get_competition(db, workout_2)
 
-    split_1 = __create_split(competitor_1, workout_1, competition_1)
-    split_2 = __create_split(competitor_2, workout_2, competition_2)
+    split_1 = __create_split(db, competitor_1, workout_1, competition_1)
+    split_2 = __create_split(db, competitor_2, workout_2, competition_2)
 
     split_comparer = SplitComparerEntity()
     data = split_comparer.compare_splits(split_1, split_2)
@@ -83,13 +84,18 @@ async def compare_split(
 
 
 def __create_split(
+    db: Session,
     user: User,
     workout: Workout,
     competition: Competition
 ) -> Split:
 
     person = user.first_name + ' ' + user.last_name
-    class_code = ''  # TODO: Improve
+
+    # Get class from user's registration
+    registration = get_registration_by_user(db, user.id, competition.id)
+    class_code = registration.class_ if registration and registration.class_ else ''
+
     ctrl_points_info = __get_ctrl_points_info(workout.splits)
     # logger.debug(ctrl_points_info)
     try:

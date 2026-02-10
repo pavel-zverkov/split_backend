@@ -122,9 +122,9 @@ async def upload_avatar(
             detail='File size must be less than 5MB'
         )
 
-    # TODO: Upload to MinIO and update user.logo
-    # For now, we just return a placeholder
-    logo_url = f'/avatars/{current_user.id}.jpg'
+    # Upload to MinIO
+    from ..database.minio_service import upload_avatar
+    logo_url = upload_avatar(current_user.id, contents, file.content_type)
     current_user.logo = logo_url
     db.commit()
 
@@ -158,7 +158,9 @@ async def delete_current_user(
 
     # Soft or hard delete
     if hard:
-        # TODO: Delete avatar from MinIO
+        # Delete avatar from MinIO
+        from ..database.minio_service import delete_avatar
+        delete_avatar(current_user.id)
         user_crud.hard_delete_user(db, current_user)
     else:
         user_crud.soft_delete_user(db, current_user)
@@ -281,9 +283,9 @@ async def find_matching_ghosts(
                     username_display=creator_user.username_display,
                 )
 
-        # TODO: Count competitions and build summary
-        competitions_count = 0
-        results_summary = None
+        # Count competitions and build summary
+        competitions_count = user_crud.get_user_competitions_count(db, ghost.id)
+        results_summary = user_crud.get_user_results_summary(db, ghost.id)
 
         result.append(GhostMatchItem(
             user_id=ghost.id,

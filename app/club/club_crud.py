@@ -273,3 +273,22 @@ def can_remove_member(actor_role: ClubRole, target_role: ClubRole) -> bool:
         # Coach can only remove member
         return target_role == ClubRole.MEMBER
     return False
+
+
+def get_user_active_club(db: Session, user_id: int) -> Club | None:
+    """Get user's active club membership. Returns the first active club."""
+    membership = db.query(ClubMembership).filter(
+        ClubMembership.user_id == user_id,
+        ClubMembership.status == MembershipStatus.ACTIVE
+    ).first()
+    if membership:
+        return membership.club
+    return None
+
+
+def get_active_members(db: Session, club_id: int) -> list[ClubMembership]:
+    """Get all active members of a club."""
+    return db.query(ClubMembership).filter(
+        ClubMembership.club_id == club_id,
+        ClubMembership.status == MembershipStatus.ACTIVE
+    ).all()

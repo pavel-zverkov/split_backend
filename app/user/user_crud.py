@@ -282,3 +282,36 @@ def can_create_ghost_users(db: Session, user_id: int) -> bool:
     ).count() > 0
 
     return is_organizer
+
+
+def get_user_competitions_count(db: Session, user_id: int) -> int:
+    """Count competitions user has registered for."""
+    from ..competition.competition_registration_model import CompetitionRegistration
+    return db.query(CompetitionRegistration).filter(
+        CompetitionRegistration.user_id == user_id
+    ).count()
+
+
+def get_user_results_summary(db: Session, user_id: int) -> str | None:
+    """Get a brief summary of user's best results."""
+    from ..result.result_model import Result
+    from ..enums.result_status import ResultStatus
+
+    results = db.query(Result).filter(
+        Result.user_id == user_id,
+        Result.status == ResultStatus.OK,
+        Result.position.isnot(None)
+    ).order_by(Result.position.asc()).limit(3).all()
+
+    if not results:
+        return None
+
+    best = results[0]
+    if best.position == 1:
+        return f"Best: 1st place ({len(results)} results)"
+    elif best.position == 2:
+        return f"Best: 2nd place ({len(results)} results)"
+    elif best.position == 3:
+        return f"Best: 3rd place ({len(results)} results)"
+    else:
+        return f"Best: {best.position}th place ({len(results)} results)"

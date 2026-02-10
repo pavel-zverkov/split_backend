@@ -11,6 +11,7 @@ from ..auth.auth_service import get_current_user, get_current_user_optional
 from ..user.user_model import User
 from ..competition.competition_crud import get_competition
 from ..competition.registration_crud import get_registration_by_user
+from ..club import club_crud
 from . import result_crud
 from .result_schema import (
     ResultCreate,
@@ -57,10 +58,12 @@ def get_result_or_404(db: Session, result_id: int):
     return result
 
 
-def build_user_brief(user: User) -> ResultUserBrief:
+def build_user_brief(db: Session, user: User) -> ResultUserBrief:
     # Get user's club (if any)
     club = None
-    # TODO: Add club relationship when user-club is implemented
+    user_club = club_crud.get_user_active_club(db, user.id)
+    if user_club:
+        club = ClubBrief(id=user_club.id, name=user_club.name)
     return ResultUserBrief(
         id=user.id,
         username_display=user.username_display,
@@ -212,7 +215,7 @@ async def list_results(
     for r in results:
         items.append(ResultListItem(
             id=r.id,
-            user=build_user_brief(r.user),
+            user=build_user_brief(db, r.user),
             competition_class=r.class_,
             position=r.position,
             time_total=r.time_total,
@@ -285,7 +288,7 @@ async def get_my_result(
 
     return ResultDetailResponse(
         id=result.id,
-        user=build_user_brief(result.user),
+        user=build_user_brief(db, result.user),
         competition=CompetitionBrief(
             id=competition.id,
             name=competition.name,
@@ -343,7 +346,7 @@ async def get_result_detail(
 
     return ResultDetailResponse(
         id=result.id,
-        user=build_user_brief(result.user),
+        user=build_user_brief(db, result.user),
         competition=CompetitionBrief(
             id=competition.id,
             name=competition.name,

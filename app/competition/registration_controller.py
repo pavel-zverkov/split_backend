@@ -19,11 +19,13 @@ from .registration_schema import (
     StartListResponse,
     StartListItem,
     StartListUserBrief,
+    ClubBrief,
     ClassSummary,
     CompetitionBrief,
     AddRegistrationRequest,
 )
 from ..user import user_crud
+from ..club import club_crud
 
 registration_router = APIRouter(prefix='/api/competitions', tags=['competition-registration'])
 
@@ -279,6 +281,12 @@ async def get_start_list(
 
     items = []
     for reg in registrations:
+        # Get user's club
+        user_club = club_crud.get_user_active_club(db, reg.user.id)
+        club_brief = None
+        if user_club:
+            club_brief = ClubBrief(id=user_club.id, name=user_club.name)
+
         items.append(StartListItem(
             bib_number=reg.bib_number,
             start_time=reg.start_time,
@@ -288,7 +296,7 @@ async def get_start_list(
                 username_display=reg.user.username_display,
                 first_name=reg.user.first_name,
                 last_name=f"{reg.user.last_name[0]}." if reg.user.last_name else None,
-                club=None,  # TODO: Add club when user-club relationship is implemented
+                club=club_brief,
             ),
         ))
 

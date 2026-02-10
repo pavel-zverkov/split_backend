@@ -19,5 +19,12 @@ class OrientMapCreate(BaseModel):
     location_point: Annotated[str, WKBElement] | None = None
 
 
+class OrientMapUpdate(BaseModel):
+    map_name: str | None = None
+    location_name: str | None = None
+    location_point: Annotated[str, WKBElement] | None = None
+    scale: str | None = None
+
+
 class OrientMap(OrientMapCreate):
     id: int

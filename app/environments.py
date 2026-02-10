@@ -12,8 +12,8 @@ class Environments:
     # minio
     MINIO_HOST: str
     MINIO_PORT: str
-    ACCESS_KEY: str
-    SECRET_KEY: str
+    MINIO_ROOT_USER: str
+    MINIO_ROOT_PASSWORD: str
 
     # JWT
     JWT_SECRET_KEY: str

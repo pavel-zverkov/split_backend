@@ -18,6 +18,7 @@ from .competition_schema import (
     CompetitionListResponse,
     CompetitionDetailResponse,
     EventBrief,
+    MyRegistrationBrief,
     CompetitionTeamItem,
     CompetitionTeamListResponse,
     TeamUserBrief,
@@ -166,6 +167,20 @@ async def get_competition(
 
     team, team_count = competition_crud.get_competition_team(db, competition_id, limit=1000)
 
+    # Get current user's registration if authenticated
+    my_registration = None
+    if current_user:
+        from . import registration_crud
+        reg = registration_crud.get_registration_by_user(db, current_user.id, competition_id)
+        if reg:
+            my_registration = MyRegistrationBrief(
+                id=reg.id,
+                competition_class=reg.class_,
+                bib_number=reg.bib_number,
+                start_time=reg.start_time,
+                status=reg.status.value,
+            )
+
     return CompetitionDetailResponse(
         id=competition.id,
         event_id=competition.event_id,
@@ -182,7 +197,7 @@ async def get_competition(
         status=competition.status,
         registrations_count=competition_crud.get_registrations_count(db, competition_id),
         team_count=team_count,
-        my_registration=None,  # TODO: Implement when registration is done
+        my_registration=my_registration,
         created_at=competition.created_at,
     )
 
