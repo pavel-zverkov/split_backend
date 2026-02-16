@@ -11,6 +11,7 @@ from ..config import Config
 from ..database import get_db
 from ..user.user_model import User
 from ..enums.account_type import AccountType
+from ..logger import logger
 
 security = HTTPBearer(auto_error=False)
 
@@ -91,6 +92,7 @@ def get_current_user(
 
     if user.account_type == AccountType.GHOST:
         raise credentials_exception
+
 
     return user
 

@@ -19,6 +19,9 @@ from .user_schema import (
     GhostUserResponse,
     GhostMatchResponse,
     GhostMatchItem,
+    GhostMatchEventInfo,
+    GhostMatchCompetitionInfo,
+    GhostMatchClubInfo,
     CreatorBrief,
     AvatarResponse,
 )
@@ -283,9 +286,23 @@ async def find_matching_ghosts(
                     username_display=creator_user.username_display,
                 )
 
-        # Count competitions and build summary
         competitions_count = user_crud.get_user_competitions_count(db, ghost.id)
         results_summary = user_crud.get_user_results_summary(db, ghost.id)
+
+        # Get events and clubs for this ghost
+        events_raw = user_crud.get_ghost_events(db, ghost.id)
+        events = [
+            GhostMatchEventInfo(
+                event_id=e['event_id'],
+                event_name=e['event_name'],
+                competitions=[
+                    GhostMatchCompetitionInfo(**c) for c in e['competitions']
+                ],
+            ) for e in events_raw
+        ]
+
+        clubs_raw = user_crud.get_ghost_clubs(db, ghost.id)
+        clubs = [GhostMatchClubInfo(**c) for c in clubs_raw]
 
         result.append(GhostMatchItem(
             user_id=ghost.id,
@@ -296,6 +313,8 @@ async def find_matching_ghosts(
             created_by=creator,
             competitions_count=competitions_count,
             results_summary=results_summary,
+            events=events,
+            clubs=clubs,
         ))
 
     return GhostMatchResponse(matches=result)
