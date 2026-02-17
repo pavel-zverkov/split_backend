@@ -82,6 +82,7 @@ async def create_event(
         competitions_count=0,
         team_count=1,
         participants_count=0,
+        has_open_registration=False,
         created_at=event.created_at,
     )
 
@@ -143,6 +144,7 @@ async def get_event(
         team_count=team_count,
         my_role=my_role,
         my_position=my_position,
+        has_open_registration=event_crud.has_open_registration(db, event_id),
         created_at=event.created_at,
     )
 
@@ -199,6 +201,7 @@ async def list_events(
             competitions_count=competitions_count,
             participants_count=participants_count,
             my_role=my_role,
+            has_open_registration=event_crud.has_open_registration(db, event.id),
         ))
 
     return EventListResponse(
@@ -238,7 +241,20 @@ async def update_event(
             detail=f'Invalid status transition from {event.status.value} to {data.status.value}'
         )
 
+    # DRAFT → PLANNED requires at least one competition
+    if data.status == EventStatus.PLANNED and event.status == EventStatus.DRAFT:
+        if event_crud.get_competitions_count(db, event_id) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Event must have at least one competition to be published'
+            )
+
     updated_event = event_crud.update_event(db, event, data)
+
+    # FINISHED cascade: auto-transition all child competitions
+    if data.status == EventStatus.FINISHED:
+        event_crud.finish_event_competitions(db, event_id)
+        db.commit()
 
     competitions_count = event_crud.get_competitions_count(db, event_id)
     team_count = event_crud.get_team_count(db, event_id)
@@ -268,6 +284,7 @@ async def update_event(
         team_count=team_count,
         my_role=participation.role if participation else None,
         my_position=participation.position if participation else None,
+        has_open_registration=event_crud.has_open_registration(db, event_id),
         created_at=updated_event.created_at,
     )
 

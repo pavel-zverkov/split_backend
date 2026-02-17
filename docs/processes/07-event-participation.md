@@ -139,15 +139,15 @@ flowchart TD
 - `400` - Already participating (with `approved` or `pending` status)
 - `400` - Role not open for recruitment (team roles)
 - `400` - Invalid invite token
-- `400` - Event status does not allow registration (must be `registration_open` or `in_progress`)
+- `400` - Event status does not allow registration (must be `planned` or `in_progress`)
 - `400` - All selected competitions have already started
 
 **Note:** Users with `rejected` status can re-apply by sending a new request.
 
 **Registration rules:**
-- Event must be in `registration_open` or `in_progress` status
-- Can only register for competitions with status `planned` (not yet started)
-- Can use `competition_ids: "all"` to register for all upcoming competitions
+- Event must be in `planned` or `in_progress` status
+- Competition-level registration is controlled by competition status (`registration_open` allows self-registration, `registration_closed` allows only team-member registration)
+- Can use `competition_ids: "all"` to register for all competitions with open registration
 
 ## 7.1b Add Participant (Organizer)
 

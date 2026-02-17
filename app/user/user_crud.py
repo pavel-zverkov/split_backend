@@ -248,7 +248,7 @@ def user_owns_clubs(db: Session, user_id: int) -> bool:
 def user_organizes_active_events(db: Session, user_id: int) -> bool:
     from ..event.event_model import Event
     from ..enums.event_status import EventStatus
-    active_statuses = [EventStatus.DRAFT, EventStatus.PLANNED, EventStatus.REGISTRATION_OPEN, EventStatus.IN_PROGRESS]
+    active_statuses = [EventStatus.DRAFT, EventStatus.PLANNED, EventStatus.IN_PROGRESS]
     return db.query(Event).filter(
         Event.organizer_id == user_id,
         Event.status.in_(active_statuses)

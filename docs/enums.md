@@ -30,16 +30,17 @@
 | Value | Description |
 |-------|-------------|
 | `draft` | Event created, not visible to public |
-| `planned` | Visible, registration not open yet (default) |
-| `registration_open` | Athletes can register |
+| `planned` | Visible (default). Requires at least one competition to transition from draft. |
 | `in_progress` | Event running |
-| `finished` | Completed |
+| `finished` | Completed. Auto-finishes/cancels all child competitions. |
 | `cancelled` | Cancelled |
 
 ## competition_status
 | Value | Description |
 |-------|-------------|
-| `planned` | Upcoming |
+| `planned` | Upcoming, registration not open |
+| `registration_open` | Athletes can self-register |
+| `registration_closed` | Self-registration closed, team members can still register athletes |
 | `in_progress` | Currently active |
 | `finished` | Completed |
 | `cancelled` | Cancelled |

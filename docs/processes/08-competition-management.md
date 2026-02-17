@@ -17,20 +17,34 @@ A **Competition** is a single race/contest within an event. Events can have one 
 
 ### Competition Status
 
-Competition status is **independent** of event status. Each competition has its own lifecycle:
+Competition status is **independent** of event status. Each competition has its own lifecycle, including registration control:
 
 | Status | Description |
 |--------|-------------|
-| `planned` | Upcoming |
+| `planned` | Upcoming, registration not open |
+| `registration_open` | Athletes can self-register |
+| `registration_closed` | Self-registration closed, team members can still register athletes |
 | `in_progress` | Currently running |
 | `finished` | Completed |
 | `cancelled` | Cancelled |
+
+**Status transitions:**
+| From | Allowed To |
+|------|------------|
+| `planned` | `registration_open`, `cancelled` |
+| `registration_open` | `registration_closed`, `in_progress`, `cancelled` |
+| `registration_closed` | `registration_open`, `in_progress`, `cancelled` |
+| `in_progress` | `finished`, `cancelled` |
+| `finished` | — (terminal) |
+| `cancelled` | — (terminal) |
 
 **Example:** Event runs Feb 1-8 with daily competitions:
 - Event status: `in_progress` (Feb 3)
 - Feb 1 competition: `finished`
 - Feb 3 competition: `in_progress`
-- Feb 5 competition: `planned`
+- Feb 5 competition: `registration_open`
+
+**Note:** When the parent event transitions to `finished`, all child competitions are auto-transitioned: `in_progress` → `finished`, others → `cancelled`.
 
 ### Control Points
 

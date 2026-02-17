@@ -60,6 +60,7 @@ class EventResponse(BaseModel):
     competitions_count: int
     team_count: int
     participants_count: int
+    has_open_registration: bool
     created_at: datetime
 
     model_config = {'from_attributes': True}
@@ -83,6 +84,7 @@ class EventDetailResponse(BaseModel):
     team_count: int
     my_role: EventRole | None = None
     my_position: EventPosition | None = None
+    has_open_registration: bool
     created_at: datetime
 
     model_config = {'from_attributes': True}
@@ -101,6 +103,7 @@ class EventListItem(BaseModel):
     competitions_count: int
     participants_count: int
     my_role: EventRole | None = None
+    has_open_registration: bool
 
     model_config = {'from_attributes': True}
 

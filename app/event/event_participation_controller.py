@@ -55,7 +55,7 @@ def get_event_or_404(db: Session, event_id: int):
 
 def check_registration_allowed(event):
     """Check if event allows registration."""
-    if event.status not in [EventStatus.REGISTRATION_OPEN, EventStatus.IN_PROGRESS]:
+    if event.status not in [EventStatus.PLANNED, EventStatus.IN_PROGRESS]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Event is not open for registration'

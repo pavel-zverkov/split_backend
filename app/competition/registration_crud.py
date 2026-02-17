@@ -144,19 +144,27 @@ def has_result(db: Session, registration_id: int) -> bool:
     ).first() is not None
 
 
-def can_register(db: Session, competition: Competition) -> bool:
-    """Check if registration is allowed for competition."""
-    if competition.status == CompetitionStatus.PLANNED:
+def can_register(db: Session, competition: Competition, is_team_member: bool = False) -> bool:
+    """Check if registration is allowed for competition.
+    When registration is closed, only team members can register athletes.
+    """
+    if competition.status == CompetitionStatus.REGISTRATION_OPEN:
         return True
+    if competition.status == CompetitionStatus.REGISTRATION_CLOSED:
+        return is_team_member
     if competition.status == CompetitionStatus.IN_PROGRESS:
         return competition.start_format == StartFormat.FREE
     return False
 
 
-def can_cancel_registration(db: Session, competition: Competition) -> bool:
-    """Check if user can cancel their own registration."""
-    if competition.status == CompetitionStatus.PLANNED:
+def can_cancel_registration(db: Session, competition: Competition, is_team_member: bool = False) -> bool:
+    """Check if user can cancel their own registration.
+    When registration is closed, only team members can cancel.
+    """
+    if competition.status == CompetitionStatus.REGISTRATION_OPEN:
         return True
+    if competition.status == CompetitionStatus.REGISTRATION_CLOSED:
+        return is_team_member
     if competition.status == CompetitionStatus.IN_PROGRESS:
         return competition.start_format == StartFormat.FREE
     return False

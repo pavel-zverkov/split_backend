@@ -93,7 +93,7 @@ erDiagram
         string location
         enum sport_kind
         enum privacy "public/by_request"
-        enum status "draft/planned/registration_open/in_progress/finished/cancelled"
+        enum status "draft/planned/in_progress/finished/cancelled"
         int max_participants
         bool recruitment_open
         array needed_roles
@@ -128,7 +128,7 @@ erDiagram
         array control_points_list
         int distance_meters
         string location
-        enum status
+        enum status "planned/registration_open/registration_closed/in_progress/finished/cancelled"
         datetime created_at
     }
 

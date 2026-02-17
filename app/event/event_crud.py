@@ -81,6 +81,34 @@ def delete_event(db: Session, event: Event) -> None:
     db.commit()
 
 
+def finish_event_competitions(db: Session, event_id: int) -> None:
+    """Auto-transition all child competitions when event is finished."""
+    from ..competition.competition_model import Competition
+    from ..enums.competition_status import CompetitionStatus
+
+    competitions = db.query(Competition).filter(
+        Competition.event_id == event_id,
+        Competition.status.notin_([CompetitionStatus.FINISHED, CompetitionStatus.CANCELLED])
+    ).all()
+
+    for comp in competitions:
+        if comp.status == CompetitionStatus.IN_PROGRESS:
+            comp.status = CompetitionStatus.FINISHED
+        else:
+            comp.status = CompetitionStatus.CANCELLED
+
+
+def has_open_registration(db: Session, event_id: int) -> bool:
+    """Check if any competition in the event has registration open."""
+    from ..competition.competition_model import Competition
+    from ..enums.competition_status import CompetitionStatus
+
+    return db.query(Competition).filter(
+        Competition.event_id == event_id,
+        Competition.status == CompetitionStatus.REGISTRATION_OPEN
+    ).count() > 0
+
+
 def get_competitions_count(db: Session, event_id: int) -> int:
     from ..competition.competition_model import Competition
     return db.query(Competition).filter(Competition.event_id == event_id).count()
@@ -312,8 +340,7 @@ def transfer_ownership(
 # Status transition rules
 VALID_STATUS_TRANSITIONS = {
     EventStatus.DRAFT: [EventStatus.PLANNED, EventStatus.CANCELLED],
-    EventStatus.PLANNED: [EventStatus.DRAFT, EventStatus.REGISTRATION_OPEN, EventStatus.CANCELLED],
-    EventStatus.REGISTRATION_OPEN: [EventStatus.PLANNED, EventStatus.IN_PROGRESS, EventStatus.CANCELLED],
+    EventStatus.PLANNED: [EventStatus.DRAFT, EventStatus.IN_PROGRESS, EventStatus.CANCELLED],
     EventStatus.IN_PROGRESS: [EventStatus.FINISHED, EventStatus.CANCELLED],
     EventStatus.FINISHED: [],
     EventStatus.CANCELLED: [],

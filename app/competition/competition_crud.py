@@ -99,7 +99,9 @@ def get_results_count(db: Session, competition_id: int) -> int:
 
 # Status transition rules
 VALID_STATUS_TRANSITIONS = {
-    CompetitionStatus.PLANNED: [CompetitionStatus.IN_PROGRESS, CompetitionStatus.CANCELLED],
+    CompetitionStatus.PLANNED: [CompetitionStatus.REGISTRATION_OPEN, CompetitionStatus.CANCELLED],
+    CompetitionStatus.REGISTRATION_OPEN: [CompetitionStatus.REGISTRATION_CLOSED, CompetitionStatus.IN_PROGRESS, CompetitionStatus.CANCELLED],
+    CompetitionStatus.REGISTRATION_CLOSED: [CompetitionStatus.REGISTRATION_OPEN, CompetitionStatus.IN_PROGRESS, CompetitionStatus.CANCELLED],
     CompetitionStatus.IN_PROGRESS: [CompetitionStatus.FINISHED, CompetitionStatus.CANCELLED],
     CompetitionStatus.FINISHED: [],
     CompetitionStatus.CANCELLED: [],

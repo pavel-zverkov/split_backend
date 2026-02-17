@@ -41,13 +41,16 @@ rejected ──► (can re-apply) ──► pending
 | `pending` | `pending` |
 | `approved` | `registered` |
 
-### Registration Blocking by Start Format
+### Registration by Competition Status
 
-| start_format | Can register during `in_progress`? |
-|--------------|-------------------------------------|
-| `separated_start` | No |
-| `mass_start` | No |
-| `free` | Yes |
+| Competition Status | Self-registration | Team-member registration |
+|--------------------|-------------------|--------------------------|
+| `planned` | No | No |
+| `registration_open` | Yes | Yes |
+| `registration_closed` | No | Yes |
+| `in_progress` (free format) | Yes | Yes |
+| `in_progress` (other formats) | No | No |
+| `finished` / `cancelled` | No | No |
 
 ---
 
@@ -67,7 +70,7 @@ rejected ──► (can re-apply) ──► pending
 **Flow:**
 1. Verify user has approved event participation
 2. Verify competition allows registration:
-   - `status=planned`, OR
+   - `status=registration_open`, OR
    - `status=in_progress` AND `start_format=free`
 3. Verify no existing registration (or previous was `rejected`)
 4. Verify class is in `class_list`

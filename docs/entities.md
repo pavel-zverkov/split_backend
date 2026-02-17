@@ -135,7 +135,7 @@
 | 7 | `location` | string | no | Venue/area |
 | 8 | `sport_kind` | enum | yes | |
 | 9 | `privacy` | enum | yes | public/by_request |
-| 10 | `status` | enum | yes | draft/planned/registration_open/in_progress/finished/cancelled |
+| 10 | `status` | enum | yes | draft/planned/in_progress/finished/cancelled |
 | 11 | `max_participants` | int | no | Capacity limit |
 | 12 | `recruitment_open` | bool | yes | Team self-registration enabled (default: false) |
 | 13 | `needed_roles` | array | no | Roles open for recruitment |
@@ -184,7 +184,7 @@
 | 9 | `control_points_list` | array | no | Checkpoints: control codes (orienteering) or distance markers (running) |
 | 10 | `distance_meters` | int | no | Course length |
 | 11 | `location` | string | no | |
-| 12 | `status` | enum | yes | planned/in_progress/finished/cancelled |
+| 12 | `status` | enum | yes | planned/registration_open/registration_closed/in_progress/finished/cancelled |
 | 13 | `created_at` | datetime | yes | |
 
 ## CompetitionTeam

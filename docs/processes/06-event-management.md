@@ -50,22 +50,20 @@ Each team role (except volunteer) can have a hierarchy:
 ### Event Status Flow
 
 ```
-draft ──┐
-        ├──► planned ──► registration_open ──► in_progress ──► finished
-        │                       │                   │
-        │                       └───────────────────┴──► cancelled
-        │
-   (optional)
+draft ↔ planned ──► in_progress ──► finished
+  ↓        ↓             ↓
+  └────────┴─────────────┴──► cancelled
 ```
 
 | Status | Description | Visible |
 |--------|-------------|---------|
 | `draft` | Event created, not visible to public | No |
-| `planned` | Visible, registration not open yet (default) | Yes |
-| `registration_open` | Athletes can register | Yes |
+| `planned` | Visible (default). Requires at least one competition to transition from draft. | Yes |
 | `in_progress` | Event running | Yes |
-| `finished` | Completed | Yes |
+| `finished` | Completed. Auto-finishes/cancels all child competitions. | Yes |
 | `cancelled` | Cancelled | Yes |
+
+**Note:** Registration is managed at the competition level, not the event level. Event responses include a computed `has_open_registration` field indicating whether any competition has `registration_open` status.
 
 ---
 
@@ -222,12 +220,13 @@ draft ──┐
 **Status transition rules:**
 | From | Allowed To |
 |------|------------|
-| `draft` | `planned`, `cancelled` |
-| `planned` | `draft`, `registration_open`, `cancelled` |
-| `registration_open` | `planned`, `in_progress`, `cancelled` |
-| `in_progress` | `finished`, `cancelled` |
+| `draft` | `planned` (requires ≥1 competition), `cancelled` |
+| `planned` | `draft`, `in_progress`, `cancelled` |
+| `in_progress` | `finished` (cascades to competitions), `cancelled` |
 | `finished` | — (terminal) |
 | `cancelled` | — (terminal) |
+
+**Cascade on FINISHED:** When event transitions to `finished`, all child competitions auto-transition: `in_progress` → `finished`, others (`planned`/`registration_open`/`registration_closed`) → `cancelled`.
 
 **Response:** `200 OK` (updated event object)
 
@@ -263,7 +262,37 @@ draft ──┐
 - `400` - Cannot delete event in progress
 - `403` - Only chief organizer can delete
 
-## 6.6 List Team Members
+## 6.6 Upload Event Logo
+
+**Endpoint:** `POST /api/events/{event_id}/logo`
+
+**Authorization:** Organizer (chief or deputy) or Secretary (chief)
+
+**Request:** `multipart/form-data` with `file` field
+
+**Constraints:**
+- File type: JPEG, PNG, or WebP
+- Max file size: 5MB
+
+**Flow:**
+1. Validate file type and size
+2. Upload to MinIO (`event-logos` bucket) as `{event_id}/logo.{ext}`
+3. Save URL to `Event.logo`
+4. Return logo URL
+
+**Response:** `200 OK`
+```json
+{
+  "logo": "http://minio:9000/event-logos/1/logo.jpg"
+}
+```
+
+**Errors:**
+- `400` - Invalid file type or file too large
+- `403` - Only organizer or chief secretary can upload logo
+- `404` - Event not found
+
+## 6.7 List Team Members
 
 **Endpoint:** `GET /api/events/{event_id}/team`
 
@@ -311,7 +340,7 @@ draft ──┐
 }
 ```
 
-## 6.7 Add Team Member
+## 6.8 Add Team Member
 
 **Endpoint:** `POST /api/events/{event_id}/team`
 
@@ -351,7 +380,7 @@ draft ──┐
 - `400` - User is already a team member
 - `400` - Invalid role (participant/spectator not allowed here)
 
-## 6.8 Update Team Member
+## 6.9 Update Team Member
 
 **Endpoint:** `PATCH /api/events/{event_id}/team/{user_id}`
 
@@ -374,7 +403,7 @@ draft ──┐
 
 **Response:** `200 OK` (updated team member object)
 
-## 6.9 Remove Team Member
+## 6.10 Remove Team Member
 
 **Endpoint:** `DELETE /api/events/{event_id}/team/{user_id}`
 
@@ -393,7 +422,7 @@ draft ──┐
 
 **Response:** `204 No Content`
 
-## 6.10 Transfer Organizer Role
+## 6.11 Transfer Organizer Role
 
 **Endpoint:** `POST /api/events/{event_id}/transfer-ownership`
 
