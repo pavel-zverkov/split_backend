@@ -36,6 +36,7 @@ def get_event_by_name(db: Session, event_name: str, sport_kind: str) -> Event | 
 def create_event(db: Session, data: EventCreate, organizer_id: int) -> Event:
     event = Event(
         name=data.name,
+        logo=data.logo,
         description=data.description,
         start_date=data.start_date,
         end_date=data.end_date,
@@ -213,7 +214,7 @@ def search_events(
         )
 
     total = q.count()
-    events = q.order_by(Event.start_date.desc()).offset(offset).limit(limit).all()
+    events = q.order_by(Event.start_date.asc(), Event.end_date.asc()).offset(offset).limit(limit).all()
     return events, total
 
 

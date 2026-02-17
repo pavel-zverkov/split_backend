@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -29,6 +29,7 @@ from .event_schema import (
     UpdateTeamMemberRequest,
     TransferOwnershipRequest,
     TransferOwnershipResponse,
+    EventLogoResponse,
 )
 
 event_router = APIRouter(prefix='/api/events', tags=['events'])
@@ -48,11 +49,27 @@ async def create_event(
             detail='Status must be draft or planned at creation'
         )
 
+    # Validate dates
+    if data.end_date < data.start_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='End date must be equal to or after start date'
+        )
+
+    # Check for duplicate (name + sport_kind must be unique)
+    existing = event_crud.get_event_by_name(db, data.name, data.sport_kind)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail='Event with this name and sport kind already exists'
+        )
+
     event = event_crud.create_event(db, data, current_user.id)
 
     return EventResponse(
         id=event.id,
         name=event.name,
+        logo=event.logo,
         description=event.description,
         start_date=event.start_date,
         end_date=event.end_date,
@@ -107,6 +124,7 @@ async def get_event(
     return EventDetailResponse(
         id=event.id,
         name=event.name,
+        logo=event.logo,
         description=event.description,
         start_date=event.start_date,
         end_date=event.end_date,
@@ -171,6 +189,7 @@ async def list_events(
         event_items.append(EventListItem(
             id=event.id,
             name=event.name,
+            logo=event.logo,
             start_date=event.start_date,
             end_date=event.end_date,
             location=event.location,
@@ -230,6 +249,7 @@ async def update_event(
     return EventDetailResponse(
         id=updated_event.id,
         name=updated_event.name,
+        logo=updated_event.logo,
         description=updated_event.description,
         start_date=updated_event.start_date,
         end_date=updated_event.end_date,
@@ -282,6 +302,49 @@ async def delete_event(
 
     event_crud.delete_event(db, event)
     return None
+
+
+@event_router.post('/{event_id}/logo', response_model=EventLogoResponse)
+async def upload_event_logo(
+    event_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload event logo. Only organizer or chief secretary can upload."""
+    event = event_crud.get_event_by_id(db, event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Event not found'
+        )
+
+    if not event_crud.can_update_event(db, current_user.id, event_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Only organizer or chief secretary can upload logo'
+        )
+
+    allowed_types = ['image/jpeg', 'image/png', 'image/webp']
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='File must be JPEG, PNG, or WebP image'
+        )
+
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='File size must be less than 5MB'
+        )
+
+    from ..database.minio_service import upload_event_logo
+    logo_url = upload_event_logo(event_id, contents, file.content_type)
+    event.logo = logo_url
+    db.commit()
+
+    return EventLogoResponse(logo=logo_url)
 
 
 @event_router.get('/{event_id}/team', response_model=TeamListResponse)

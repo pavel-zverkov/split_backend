@@ -86,6 +86,7 @@ erDiagram
     Event {
         int id PK
         string name
+        string logo
         string description
         date start_date
         date end_date

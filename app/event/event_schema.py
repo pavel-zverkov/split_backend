@@ -12,6 +12,7 @@ from ..enums.participation_status import ParticipationStatus
 
 class EventCreate(BaseModel):
     name: str
+    logo: str | None = None
     description: str | None = None
     start_date: date
     end_date: date
@@ -24,6 +25,7 @@ class EventCreate(BaseModel):
 
 class EventUpdate(BaseModel):
     name: str | None = None
+    logo: str | None = None
     description: str | None = None
     start_date: date | None = None
     end_date: date | None = None
@@ -45,6 +47,7 @@ class EventOrganizerBrief(BaseModel):
 class EventResponse(BaseModel):
     id: int
     name: str
+    logo: str | None = None
     description: str | None = None
     start_date: date
     end_date: date
@@ -65,6 +68,7 @@ class EventResponse(BaseModel):
 class EventDetailResponse(BaseModel):
     id: int
     name: str
+    logo: str | None = None
     description: str | None = None
     start_date: date
     end_date: date
@@ -87,6 +91,7 @@ class EventDetailResponse(BaseModel):
 class EventListItem(BaseModel):
     id: int
     name: str
+    logo: str | None = None
     start_date: date
     end_date: date
     location: str | None = None
@@ -105,6 +110,10 @@ class EventListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class EventLogoResponse(BaseModel):
+    logo: str
 
 
 class TeamMemberUserBrief(BaseModel):

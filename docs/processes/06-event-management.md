@@ -7,11 +7,12 @@
 | 6.3 | `/api/events` | GET | List/search events |
 | 6.4 | `/api/events/{event_id}` | PATCH | Update event |
 | 6.5 | `/api/events/{event_id}` | DELETE | Delete event |
-| 6.6 | `/api/events/{event_id}/team` | GET | List team members |
-| 6.7 | `/api/events/{event_id}/team` | POST | Add team member |
-| 6.8 | `/api/events/{event_id}/team/{user_id}` | PATCH | Update team member |
-| 6.9 | `/api/events/{event_id}/team/{user_id}` | DELETE | Remove team member |
-| 6.10 | `/api/events/{event_id}/transfer-ownership` | POST | Transfer organizer role |
+| 6.6 | `/api/events/{event_id}/logo` | POST | Upload event logo |
+| 6.7 | `/api/events/{event_id}/team` | GET | List team members |
+| 6.8 | `/api/events/{event_id}/team` | POST | Add team member |
+| 6.9 | `/api/events/{event_id}/team/{user_id}` | PATCH | Update team member |
+| 6.10 | `/api/events/{event_id}/team/{user_id}` | DELETE | Remove team member |
+| 6.11 | `/api/events/{event_id}/transfer-ownership` | POST | Transfer organizer role |
 
 ## Event Concept
 
@@ -78,6 +79,7 @@ draft ──┐
 ```json
 {
   "name": "Moscow Open 2024",
+  "logo": null,
   "description": "Annual orienteering competition",
   "start_date": "2024-06-15",
   "end_date": "2024-06-16",
@@ -101,6 +103,7 @@ draft ──┐
 {
   "id": 1,
   "name": "Moscow Open 2024",
+  "logo": null,
   "description": "Annual orienteering competition",
   "start_date": "2024-06-15",
   "end_date": "2024-06-16",
@@ -128,6 +131,7 @@ draft ──┐
 {
   "id": 1,
   "name": "Moscow Open 2024",
+  "logo": "http://minio:9000/event-logos/1/logo.jpg",
   "description": "Annual orienteering competition",
   "start_date": "2024-06-15",
   "end_date": "2024-06-16",
@@ -179,6 +183,7 @@ draft ──┐
     {
       "id": 1,
       "name": "Moscow Open 2024",
+      "logo": "http://minio:9000/event-logos/1/logo.jpg",
       "start_date": "2024-06-15",
       "end_date": "2024-06-16",
       "location": "Moscow Region",
@@ -212,7 +217,7 @@ draft ──┐
 }
 ```
 
-**Updatable fields:** `name`, `description`, `start_date`, `end_date`, `location`, `sport_kind`, `privacy`, `status`, `max_participants`
+**Updatable fields:** `name`, `logo`, `description`, `start_date`, `end_date`, `location`, `sport_kind`, `privacy`, `status`, `max_participants`
 
 **Status transition rules:**
 | From | Allowed To |

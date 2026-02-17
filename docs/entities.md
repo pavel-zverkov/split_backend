@@ -128,19 +128,20 @@
 |---|-----------|------|----------|-------------|
 | 1 | `id` | int | PK | |
 | 2 | `name` | string | yes | |
-| 3 | `description` | string | no | Event details |
-| 4 | `start_date` | date | yes | |
-| 5 | `end_date` | date | yes | |
-| 6 | `location` | string | no | Venue/area |
-| 7 | `sport_kind` | enum | yes | |
-| 8 | `privacy` | enum | yes | public/by_request |
-| 9 | `status` | enum | yes | draft/planned/registration_open/in_progress/finished/cancelled |
-| 10 | `max_participants` | int | no | Capacity limit |
-| 11 | `recruitment_open` | bool | yes | Team self-registration enabled (default: false) |
-| 12 | `needed_roles` | array | no | Roles open for recruitment |
-| 13 | `organizer_id` | int | FK → User | Creator |
-| 14 | `created_at` | datetime | yes | |
-| 15 | `updated_at` | datetime | yes | |
+| 3 | `logo` | string | no | Logo URL/path |
+| 4 | `description` | string | no | Event details |
+| 5 | `start_date` | date | yes | |
+| 6 | `end_date` | date | yes | |
+| 7 | `location` | string | no | Venue/area |
+| 8 | `sport_kind` | enum | yes | |
+| 9 | `privacy` | enum | yes | public/by_request |
+| 10 | `status` | enum | yes | draft/planned/registration_open/in_progress/finished/cancelled |
+| 11 | `max_participants` | int | no | Capacity limit |
+| 12 | `recruitment_open` | bool | yes | Team self-registration enabled (default: false) |
+| 13 | `needed_roles` | array | no | Roles open for recruitment |
+| 14 | `organizer_id` | int | FK → User | Creator |
+| 15 | `created_at` | datetime | yes | |
+| 16 | `updated_at` | datetime | yes | |
 
 ## EventInvite
 | # | Attribute | Type | Required | Description |

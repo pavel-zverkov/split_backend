@@ -12,9 +12,10 @@ from .minio_integration import get_minio_client
 # Bucket names
 BUCKET_AVATARS = 'avatars'
 BUCKET_CLUB_LOGOS = 'club-logos'
+BUCKET_EVENT_LOGOS = 'event-logos'
 BUCKET_ARTIFACTS = 'artifacts'
 
-ALL_BUCKETS = [BUCKET_AVATARS, BUCKET_CLUB_LOGOS, BUCKET_ARTIFACTS]
+ALL_BUCKETS = [BUCKET_AVATARS, BUCKET_CLUB_LOGOS, BUCKET_EVENT_LOGOS, BUCKET_ARTIFACTS]
 
 
 def init_buckets() -> None:
@@ -139,6 +140,31 @@ def delete_club_logo(club_id: int) -> bool:
             continue
 
     logger.warning(f'No logo found for club {club_id}')
+    return False
+
+
+# === Event Logo Functions ===
+
+def upload_event_logo(event_id: int, data: bytes, content_type: str) -> str:
+    """Upload event logo and return URL."""
+    ext = _get_extension(content_type)
+    object_name = f'{event_id}/logo.{ext}'
+    return _upload_file(BUCKET_EVENT_LOGOS, object_name, data, content_type)
+
+
+def delete_event_logo(event_id: int) -> bool:
+    """Delete event logo. Tries common extensions."""
+    client = get_minio_client()
+
+    for ext in ['jpg', 'png', 'webp', 'gif']:
+        object_name = f'{event_id}/logo.{ext}'
+        try:
+            client.stat_object(BUCKET_EVENT_LOGOS, object_name)
+            return _delete_file(BUCKET_EVENT_LOGOS, object_name)
+        except S3Error:
+            continue
+
+    logger.warning(f'No logo found for event {event_id}')
     return False
 
 
