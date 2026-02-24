@@ -39,9 +39,6 @@ def create_competition(
         date=data.date,
         sport_kind=data.sport_kind or sport_kind,
         start_format=data.start_format,
-        class_list=data.class_list,
-        control_points_list=data.control_points_list,
-        distance_meters=data.distance_meters,
         location=data.location,
         status=CompetitionStatus.PLANNED,
     )

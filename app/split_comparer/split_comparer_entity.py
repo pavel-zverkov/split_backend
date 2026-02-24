@@ -29,10 +29,20 @@ class SplitComparerEntity:
         competition_right: Competition
     ) -> list[list[str]]:
 
-        left_ctrl_points = competition_left.control_point_list
-        right_ctrl_points = competition_right.control_point_list
+        left_ctrl_points = self.__get_control_points(competition_left)
+        right_ctrl_points = self.__get_control_points(competition_right)
 
         return find_common_subsequences(left_ctrl_points, right_ctrl_points)
+
+    def __get_control_points(self, competition: Competition) -> list[str]:
+        """Get control point codes from competition's distances."""
+        all_cps = []
+        if competition.distances:
+            for distance in competition.distances:
+                if distance.control_points:
+                    for cp in distance.control_points:
+                        all_cps.append(cp.code)
+        return all_cps
 
     def __create_analysis(
         self,

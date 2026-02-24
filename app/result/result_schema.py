@@ -55,7 +55,6 @@ class CompetitionBrief(BaseModel):
     id: int
     name: str
     date: str
-    control_points_list: list[str] | None = None
 
     model_config = {'from_attributes': True}
 
@@ -91,6 +90,7 @@ class ResultResponse(BaseModel):
     id: int
     user_id: int
     competition_id: int
+    distance_id: int | None = None
     workout_id: int | None = None
     competition_class: str | None = Field(None, alias='class')
     position: int | None = None

@@ -15,6 +15,7 @@ from sqlalchemy.orm import relationship
 from ..database import Base
 from ..enums.sport_kind import SportKind
 from ..enums.event_status import EventStatus
+from ..enums.event_format import EventFormat
 from ..enums.privacy import Privacy
 
 
@@ -30,6 +31,7 @@ class Event(Base):
     location = Column(String, nullable=True)
     sport_kind = Column(Enum(SportKind), nullable=False)
     privacy = Column(Enum(Privacy), nullable=False, default=Privacy.PUBLIC)
+    event_format = Column(Enum(EventFormat), nullable=False, default=EventFormat.MULTI_STAGE)
     status = Column(Enum(EventStatus), nullable=False, default=EventStatus.PLANNED)
     max_participants = Column(Integer, nullable=True)
     recruitment_open = Column(Boolean, nullable=False, default=False)

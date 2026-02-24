@@ -4,6 +4,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..enums.event_status import EventStatus
+from ..enums.event_format import EventFormat
 from ..enums.event_role import EventRole
 from ..enums.event_position import EventPosition
 from ..enums.participation_status import ParticipationStatus
@@ -42,6 +43,7 @@ def create_event(db: Session, data: EventCreate, organizer_id: int) -> Event:
         end_date=data.end_date,
         location=data.location,
         sport_kind=data.sport_kind,
+        event_format=data.event_format,
         privacy=data.privacy,
         status=data.status,
         max_participants=data.max_participants,
@@ -461,3 +463,79 @@ def get_active_invites(db: Session, event_id: int) -> list:
     ]
 
     return active
+
+
+def validate_event_for_planned(db: Session, event: Event) -> str | None:
+    """Validate event can transition to PLANNED. Returns error message or None."""
+    comps_count = get_competitions_count(db, event.id)
+    if event.event_format == EventFormat.SINGLE:
+        if comps_count != 1:
+            return 'Single-format event must have exactly 1 competition'
+    else:
+        if comps_count < 2:
+            return 'Multi-stage event must have at least 2 competitions to be published'
+    return None
+
+
+def get_competitions_brief(db: Session, event_id: int) -> list[dict]:
+    """Get brief competition info for an event (used in list/detail responses)."""
+    from ..competition.competition_model import Competition
+    from ..competition.competition_registration_model import CompetitionRegistration
+    from ..competition.distance_model import Distance
+
+    competitions = db.query(Competition).filter(
+        Competition.event_id == event_id
+    ).order_by(Competition.date.asc()).all()
+
+    result = []
+    for comp in competitions:
+        reg_count = db.query(CompetitionRegistration).filter(
+            CompetitionRegistration.competition_id == comp.id
+        ).count()
+        dist_count = db.query(Distance).filter(
+            Distance.competition_id == comp.id
+        ).count()
+        result.append({
+            "id": comp.id,
+            "name": comp.name,
+            "date": comp.date,
+            "status": comp.status,
+            "registrations_count": reg_count,
+            "distances_count": dist_count,
+        })
+    return result
+
+
+def get_single_event_competition(db: Session, event_id: int):
+    """Get the single competition for a single-format event."""
+    from ..competition.competition_model import Competition
+    return db.query(Competition).filter(Competition.event_id == event_id).first()
+
+
+def sync_single_event_competition_status(
+    db: Session,
+    event: Event,
+    old_status: EventStatus,
+    new_status: EventStatus
+) -> None:
+    """Auto-sync competition status when single-format event status changes."""
+    if event.event_format != EventFormat.SINGLE:
+        return
+
+    from ..competition.competition_model import Competition
+    from ..enums.competition_status import CompetitionStatus
+
+    comp = db.query(Competition).filter(Competition.event_id == event.id).first()
+    if not comp:
+        return
+
+    if old_status == EventStatus.DRAFT and new_status == EventStatus.PLANNED:
+        comp.status = CompetitionStatus.REGISTRATION_OPEN
+    elif old_status == EventStatus.PLANNED and new_status == EventStatus.IN_PROGRESS:
+        comp.status = CompetitionStatus.IN_PROGRESS
+    elif old_status == EventStatus.IN_PROGRESS and new_status == EventStatus.FINISHED:
+        comp.status = CompetitionStatus.FINISHED
+    elif new_status == EventStatus.CANCELLED:
+        comp.status = CompetitionStatus.CANCELLED
+
+    db.flush()

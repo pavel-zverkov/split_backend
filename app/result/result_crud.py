@@ -26,10 +26,12 @@ def create_result(
     competition_class: str | None = None,
     time_total: int | None = None,
     status: ResultStatus = ResultStatus.OK,
+    distance_id: int | None = None,
 ) -> Result:
     result = Result(
         user_id=user_id,
         competition_id=competition_id,
+        distance_id=distance_id,
         class_=competition_class,
         time_total=time_total,
         status=status,
@@ -75,19 +77,27 @@ def link_workout(db: Session, result: Result, workout_id: int) -> Result:
 def create_splits(
     db: Session,
     result_id: int,
-    splits_data: list[dict]
+    splits_data: list[dict],
+    distance=None
 ) -> list[ResultSplit]:
     """Create splits for a result. Expects list of {control_point, cumulative_time}."""
+    # Build CP code -> id map if distance provided
+    cp_map = {}
+    if distance and distance.control_points:
+        cp_map = {cp.code: cp.id for cp in distance.control_points}
+
     splits = []
     prev_cumulative = 0
 
     for i, split_data in enumerate(splits_data, start=1):
         cumulative = split_data['cumulative_time']
         split_time = cumulative - prev_cumulative
+        cp_code = split_data['control_point']
 
         split = ResultSplit(
             result_id=result_id,
-            control_point=split_data['control_point'],
+            control_point=cp_code,
+            control_point_id=cp_map.get(cp_code),
             sequence=i,
             cumulative_time=cumulative,
             split_time=split_time,
@@ -111,11 +121,12 @@ def delete_splits(db: Session, result_id: int) -> None:
 def replace_splits(
     db: Session,
     result_id: int,
-    splits_data: list[dict]
+    splits_data: list[dict],
+    distance=None
 ) -> list[ResultSplit]:
     """Replace all splits for a result."""
     delete_splits(db, result_id)
-    return create_splits(db, result_id, splits_data)
+    return create_splits(db, result_id, splits_data, distance=distance)
 
 
 # ===== Queries =====

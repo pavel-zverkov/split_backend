@@ -8,12 +8,14 @@ from ..auth.auth_service import get_current_user, get_current_user_optional
 from ..user.user_model import User
 from ..user import user_crud
 from ..enums.event_status import EventStatus
+from ..enums.event_format import EventFormat
 from ..enums.event_role import EventRole
 from ..enums.event_position import EventPosition
 from ..enums.privacy import Privacy
 from ..enums.sport_kind import SportKind
 from . import event_crud
 from .event_schema import (
+    CompetitionBriefForList,
     EventCreate,
     EventUpdate,
     EventResponse,
@@ -21,6 +23,7 @@ from .event_schema import (
     EventListItem,
     EventListResponse,
     EventOrganizerBrief,
+    SingleEventCompetitionBrief,
     TeamMemberItem,
     TeamMemberUserBrief,
     TeamListResponse,
@@ -33,6 +36,29 @@ from .event_schema import (
 )
 
 event_router = APIRouter(prefix='/api/events', tags=['events'])
+
+
+def _build_competition_brief(db: Session, event) -> SingleEventCompetitionBrief | None:
+    """Build competition brief for single-format events."""
+    if event.event_format != EventFormat.SINGLE:
+        return None
+    comp = event_crud.get_single_event_competition(db, event.id)
+    if not comp:
+        return None
+    from ..competition import competition_crud
+    return SingleEventCompetitionBrief(
+        id=comp.id,
+        start_format=comp.start_format,
+        registrations_count=competition_crud.get_registrations_count(db, comp.id),
+    )
+
+
+def _build_competitions_list(db: Session, event) -> list[CompetitionBriefForList]:
+    """Build competitions list for multi-stage events."""
+    if event.event_format != EventFormat.MULTI_STAGE:
+        return []
+    briefs = event_crud.get_competitions_brief(db, event.id)
+    return [CompetitionBriefForList(**b) for b in briefs]
 
 
 @event_router.post('', response_model=EventResponse, status_code=status.HTTP_201_CREATED)
@@ -66,6 +92,35 @@ async def create_event(
 
     event = event_crud.create_event(db, data, current_user.id)
 
+    # For single-format events, auto-create the competition
+    competition_brief = None
+    competitions_count = 0
+    if data.event_format == EventFormat.SINGLE:
+        from ..competition.competition_model import Competition
+        from ..enums.start_format import StartFormat
+        from ..enums.competition_status import CompetitionStatus
+
+        comp_data = data.competition
+        comp = Competition(
+            event_id=event.id,
+            name=event.name,
+            description=comp_data.description if comp_data else None,
+            date=event.start_date,
+            sport_kind=event.sport_kind,
+            start_format=comp_data.start_format if comp_data else StartFormat.SEPARATED_START,
+            location=comp_data.location if comp_data else event.location,
+            status=CompetitionStatus.PLANNED,
+        )
+        db.add(comp)
+        db.commit()
+        db.refresh(comp)
+        competitions_count = 1
+        competition_brief = SingleEventCompetitionBrief(
+            id=comp.id,
+            start_format=comp.start_format,
+            registrations_count=0,
+        )
+
     return EventResponse(
         id=event.id,
         name=event.name,
@@ -75,14 +130,18 @@ async def create_event(
         end_date=event.end_date,
         location=event.location,
         sport_kind=event.sport_kind,
+        event_format=event.event_format,
         privacy=event.privacy,
         status=event.status,
         max_participants=event.max_participants,
         organizer_id=event.organizer_id,
-        competitions_count=0,
+        competitions_count=competitions_count,
         team_count=1,
         participants_count=0,
         has_open_registration=False,
+        recruitment_open=event.recruitment_open,
+        needed_roles=event.needed_roles,
+        competition_brief=competition_brief,
         created_at=event.created_at,
     )
 
@@ -131,6 +190,7 @@ async def get_event(
         end_date=event.end_date,
         location=event.location,
         sport_kind=event.sport_kind,
+        event_format=event.event_format,
         privacy=event.privacy,
         status=event.status,
         max_participants=event.max_participants,
@@ -145,6 +205,10 @@ async def get_event(
         my_role=my_role,
         my_position=my_position,
         has_open_registration=event_crud.has_open_registration(db, event_id),
+        recruitment_open=event.recruitment_open,
+        needed_roles=event.needed_roles,
+        competition_brief=_build_competition_brief(db, event),
+        competitions=_build_competitions_list(db, event),
         created_at=event.created_at,
     )
 
@@ -196,12 +260,17 @@ async def list_events(
             end_date=event.end_date,
             location=event.location,
             sport_kind=event.sport_kind,
+            event_format=event.event_format,
             privacy=event.privacy,
             status=event.status,
             competitions_count=competitions_count,
             participants_count=participants_count,
             my_role=my_role,
             has_open_registration=event_crud.has_open_registration(db, event.id),
+            recruitment_open=event.recruitment_open,
+            needed_roles=event.needed_roles,
+            competition_brief=_build_competition_brief(db, event),
+            competitions=_build_competitions_list(db, event),
         ))
 
     return EventListResponse(
@@ -241,17 +310,23 @@ async def update_event(
             detail=f'Invalid status transition from {event.status.value} to {data.status.value}'
         )
 
-    # DRAFT → PLANNED requires at least one competition
+    # Validate DRAFT → PLANNED transition
     if data.status == EventStatus.PLANNED and event.status == EventStatus.DRAFT:
-        if event_crud.get_competitions_count(db, event_id) == 0:
+        error = event_crud.validate_event_for_planned(db, event)
+        if error:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail='Event must have at least one competition to be published'
+                detail=error
             )
 
+    old_status = event.status
     updated_event = event_crud.update_event(db, event, data)
 
-    # FINISHED cascade: auto-transition all child competitions
+    # Sync single-event competition status
+    if data.status and data.status != old_status:
+        event_crud.sync_single_event_competition_status(db, updated_event, old_status, data.status)
+
+    # FINISHED cascade: auto-transition all child competitions (for multi_stage)
     if data.status == EventStatus.FINISHED:
         event_crud.finish_event_competitions(db, event_id)
         db.commit()
@@ -271,6 +346,7 @@ async def update_event(
         end_date=updated_event.end_date,
         location=updated_event.location,
         sport_kind=updated_event.sport_kind,
+        event_format=updated_event.event_format,
         privacy=updated_event.privacy,
         status=updated_event.status,
         max_participants=updated_event.max_participants,
@@ -285,6 +361,10 @@ async def update_event(
         my_role=participation.role if participation else None,
         my_position=participation.position if participation else None,
         has_open_registration=event_crud.has_open_registration(db, event_id),
+        recruitment_open=updated_event.recruitment_open,
+        needed_roles=updated_event.needed_roles,
+        competition_brief=_build_competition_brief(db, updated_event),
+        competitions=_build_competitions_list(db, updated_event),
         created_at=updated_event.created_at,
     )
 

@@ -4,10 +4,19 @@ from pydantic import BaseModel
 
 from ..enums.sport_kind import SportKind
 from ..enums.event_status import EventStatus
+from ..enums.event_format import EventFormat
 from ..enums.event_role import EventRole
 from ..enums.event_position import EventPosition
 from ..enums.privacy import Privacy
 from ..enums.participation_status import ParticipationStatus
+from ..enums.competition_status import CompetitionStatus
+from ..enums.start_format import StartFormat
+
+
+class SingleCompetitionCreate(BaseModel):
+    description: str | None = None
+    start_format: StartFormat = StartFormat.SEPARATED_START
+    location: str | None = None
 
 
 class EventCreate(BaseModel):
@@ -18,9 +27,11 @@ class EventCreate(BaseModel):
     end_date: date
     location: str | None = None
     sport_kind: SportKind
+    event_format: EventFormat = EventFormat.MULTI_STAGE
     privacy: Privacy = Privacy.PUBLIC
     status: EventStatus = EventStatus.PLANNED
     max_participants: int | None = None
+    competition: SingleCompetitionCreate | None = None
 
 
 class EventUpdate(BaseModel):
@@ -44,6 +55,25 @@ class EventOrganizerBrief(BaseModel):
     model_config = {'from_attributes': True}
 
 
+class SingleEventCompetitionBrief(BaseModel):
+    id: int
+    start_format: StartFormat
+    registrations_count: int = 0
+
+    model_config = {'from_attributes': True}
+
+
+class CompetitionBriefForList(BaseModel):
+    id: int
+    name: str
+    date: date
+    status: CompetitionStatus
+    registrations_count: int = 0
+    distances_count: int = 0
+
+    model_config = {'from_attributes': True}
+
+
 class EventResponse(BaseModel):
     id: int
     name: str
@@ -53,6 +83,7 @@ class EventResponse(BaseModel):
     end_date: date
     location: str | None = None
     sport_kind: SportKind
+    event_format: EventFormat
     privacy: Privacy
     status: EventStatus
     max_participants: int | None = None
@@ -61,6 +92,10 @@ class EventResponse(BaseModel):
     team_count: int
     participants_count: int
     has_open_registration: bool
+    recruitment_open: bool
+    needed_roles: list[str] | None = None
+    competition_brief: SingleEventCompetitionBrief | None = None
+    competitions: list[CompetitionBriefForList] = []
     created_at: datetime
 
     model_config = {'from_attributes': True}
@@ -75,6 +110,7 @@ class EventDetailResponse(BaseModel):
     end_date: date
     location: str | None = None
     sport_kind: SportKind
+    event_format: EventFormat
     privacy: Privacy
     status: EventStatus
     max_participants: int | None = None
@@ -85,6 +121,10 @@ class EventDetailResponse(BaseModel):
     my_role: EventRole | None = None
     my_position: EventPosition | None = None
     has_open_registration: bool
+    recruitment_open: bool
+    needed_roles: list[str] | None = None
+    competition_brief: SingleEventCompetitionBrief | None = None
+    competitions: list[CompetitionBriefForList] = []
     created_at: datetime
 
     model_config = {'from_attributes': True}
@@ -98,12 +138,17 @@ class EventListItem(BaseModel):
     end_date: date
     location: str | None = None
     sport_kind: SportKind
+    event_format: EventFormat
     privacy: Privacy
     status: EventStatus
     competitions_count: int
     participants_count: int
     my_role: EventRole | None = None
     has_open_registration: bool
+    recruitment_open: bool
+    needed_roles: list[str] | None = None
+    competition_brief: SingleEventCompetitionBrief | None = None
+    competitions: list[CompetitionBriefForList] = []
 
     model_config = {'from_attributes': True}
 
@@ -343,3 +388,33 @@ class AddParticipantRequest(BaseModel):
     user_id: int
     role: EventRole = EventRole.PARTICIPANT
     position: EventPosition | None = None
+
+
+class BatchParticipantItem(BaseModel):
+    user_id: int
+    role: EventRole = EventRole.PARTICIPANT
+    position: EventPosition | None = None
+    competition_ids: list[int] | None = None
+
+
+class BatchAddParticipantsRequest(BaseModel):
+    participants: list[BatchParticipantItem]
+
+
+class BatchParticipantResultItem(BaseModel):
+    user_id: int
+    status: str
+    detail: str | None = None
+
+
+class BatchAddParticipantsResponse(BaseModel):
+    added: int
+    skipped: int
+    results: list[BatchParticipantResultItem]
+
+
+class ClubParticipantsRequest(BaseModel):
+    club_id: int
+    user_ids: list[int]
+    role: EventRole = EventRole.PARTICIPANT
+    competition_ids: list[int] | None = None

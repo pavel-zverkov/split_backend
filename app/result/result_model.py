@@ -18,6 +18,7 @@ class Result(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     competition_id = Column(Integer, ForeignKey('competitions.id'), nullable=False)
+    distance_id = Column(Integer, ForeignKey('distances.id'), nullable=True)
     workout_id = Column(Integer, ForeignKey('workouts.id'), nullable=True)
     class_ = Column('class', String, nullable=True)
     position = Column(Integer, nullable=True)
@@ -35,5 +36,6 @@ class Result(Base):
     # Relationships
     user = relationship('User')
     competition = relationship('Competition', back_populates='results')
+    distance = relationship('Distance', back_populates='results')
     workout = relationship('Workout')
     splits = relationship('ResultSplit', back_populates='result', cascade='all, delete-orphan')

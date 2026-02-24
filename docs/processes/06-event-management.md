@@ -114,6 +114,9 @@ draft ↔ planned ──► in_progress ──► finished
   "competitions_count": 0,
   "team_count": 1,
   "participants_count": 0,
+  "has_open_registration": false,
+  "recruitment_open": false,
+  "needed_roles": null,
   "created_at": "2024-01-15T10:00:00Z"
 }
 ```
@@ -136,7 +139,7 @@ draft ↔ planned ──► in_progress ──► finished
   "location": "Moscow Region",
   "sport_kind": "orient",
   "privacy": "public",
-  "status": "registration_open",
+  "status": "planned",
   "max_participants": 500,
   "organizer": {
     "id": 5,
@@ -148,6 +151,9 @@ draft ↔ planned ──► in_progress ──► finished
   "team_count": 8,
   "my_role": "secretary",
   "my_position": "chief",
+  "has_open_registration": true,
+  "recruitment_open": true,
+  "needed_roles": ["judge", "volunteer"],
   "created_at": "2024-01-15T10:00:00Z"
 }
 ```
@@ -159,6 +165,15 @@ draft ↔ planned ──► in_progress ──► finished
 | Other statuses | Everyone (respecting `privacy` setting) |
 
 **`my_role` / `my_position`:** Only included if current user is a participant (any role).
+
+**Recruitment fields** (included in all event responses):
+| Field | Type | Description |
+|-------|------|-------------|
+| `has_open_registration` | bool | `true` if any competition has `registration_open` status |
+| `recruitment_open` | bool | Whether self-registration for team roles is enabled |
+| `needed_roles` | list[str] \| null | Roles open for recruitment (e.g. `["judge", "volunteer"]`) |
+
+Frontend uses `recruitment_open` + `needed_roles` to decide whether to show a "Join Team" button.
 
 ## 6.3 List/Search Events
 
@@ -187,10 +202,13 @@ draft ↔ planned ──► in_progress ──► finished
       "location": "Moscow Region",
       "sport_kind": "orient",
       "privacy": "public",
-      "status": "registration_open",
+      "status": "planned",
       "competitions_count": 3,
       "participants_count": 120,
-      "my_role": null
+      "my_role": null,
+      "has_open_registration": true,
+      "recruitment_open": true,
+      "needed_roles": ["judge", "volunteer"]
     }
   ],
   "total": 25,
@@ -211,7 +229,7 @@ draft ↔ planned ──► in_progress ──► finished
 ```json
 {
   "name": "Moscow Open 2024 - Updated",
-  "status": "registration_open"
+  "status": "in_progress"
 }
 ```
 

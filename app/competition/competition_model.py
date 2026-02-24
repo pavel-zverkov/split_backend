@@ -1,5 +1,4 @@
-from sqlalchemy import (ARRAY,
-                        Column,
+from sqlalchemy import (Column,
                         Date,
                         DateTime,
                         Enum,
@@ -30,13 +29,12 @@ class Competition(Base):
     date = Column(Date, nullable=False)
     sport_kind = Column(Enum(SportKind), nullable=True)
     start_format = Column(Enum(StartFormat), nullable=False, default=StartFormat.SEPARATED_START)
-    class_list = Column(ARRAY(String), nullable=True)
-    control_points_list = Column(ARRAY(String), nullable=True)
-    distance_meters = Column(Integer, nullable=True)
     location = Column(String, nullable=True)
     status = Column(Enum(CompetitionStatus), nullable=False, default=CompetitionStatus.PLANNED)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     # Relationships
     parent_event = relationship('Event', back_populates='competitions')
+    distances = relationship('Distance', back_populates='competition', cascade='all, delete-orphan')
     results = relationship('Result', back_populates='competition', cascade='all, delete-orphan')
+    competition_registration = relationship('CompetitionRegistration', back_populates='competition', cascade='all, delete-orphan')

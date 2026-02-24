@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -81,6 +81,29 @@ async def create_workout(
     db: Session = Depends(get_db)
 ):
     """Create a new workout."""
+    # Auto-calculate finish_datetime / duration_seconds
+    if data.finish_datetime and data.duration_seconds:
+        expected = data.start_datetime + timedelta(seconds=data.duration_seconds)
+        if abs((data.finish_datetime - expected).total_seconds()) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='finish_datetime and duration_seconds are inconsistent with start_datetime'
+            )
+    elif data.finish_datetime and not data.duration_seconds:
+        if data.finish_datetime <= data.start_datetime:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='finish_datetime must be after start_datetime'
+            )
+        data.duration_seconds = int((data.finish_datetime - data.start_datetime).total_seconds())
+    elif data.duration_seconds and not data.finish_datetime:
+        if data.duration_seconds <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='duration_seconds must be positive'
+            )
+        data.finish_datetime = data.start_datetime + timedelta(seconds=data.duration_seconds)
+
     workout = workout_crud.create_workout(db, current_user.id, data)
 
     return WorkoutResponse(

@@ -79,11 +79,13 @@ async def register_for_competition(
         # Delete rejected registration to allow re-registration
         registration_crud.delete_registration(db, existing)
 
-    # Validate class
-    if competition.class_list and data.competition_class not in competition.class_list:
+    # Validate class against distances
+    from . import distance_crud
+    all_classes = distance_crud.get_all_classes_for_competition(db, competition_id)
+    if all_classes and data.competition_class and data.competition_class not in all_classes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f'Invalid class. Available: {", ".join(competition.class_list)}'
+            detail=f'Invalid class. Available: {", ".join(all_classes)}'
         )
 
     registration = registration_crud.create_registration(
@@ -137,11 +139,13 @@ async def add_registration(
             detail='User is already registered for this competition'
         )
 
-    # Validate class
-    if competition.class_list and data.competition_class not in competition.class_list:
+    # Validate class against distances
+    from . import distance_crud
+    all_classes = distance_crud.get_all_classes_for_competition(db, competition_id)
+    if all_classes and data.competition_class and data.competition_class not in all_classes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f'Invalid class. Available: {", ".join(competition.class_list)}'
+            detail=f'Invalid class. Available: {", ".join(all_classes)}'
         )
 
     # Validate bib number uniqueness
@@ -355,12 +359,14 @@ async def update_registration(
             detail='Bib number already assigned'
         )
 
-    # Validate class
-    if data.competition_class and competition.class_list:
-        if data.competition_class not in competition.class_list:
+    # Validate class against distances
+    if data.competition_class:
+        from . import distance_crud
+        all_classes = distance_crud.get_all_classes_for_competition(db, competition_id)
+        if all_classes and data.competition_class not in all_classes:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f'Invalid class. Available: {", ".join(competition.class_list)}'
+                detail=f'Invalid class. Available: {", ".join(all_classes)}'
             )
 
     updated = registration_crud.update_registration(
