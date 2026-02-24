@@ -477,6 +477,37 @@ def validate_event_for_planned(db: Session, event: Event) -> str | None:
     return None
 
 
+def validate_event_for_in_progress(event: Event) -> str | None:
+    """Validate event can transition to IN_PROGRESS. Returns error message or None."""
+    today = date.today()
+    if today < event.start_date:
+        return f'Cannot start event before start date ({event.start_date})'
+    return None
+
+
+def validate_event_for_finished(db: Session, event: Event) -> str | None:
+    """Validate event can transition to FINISHED. Returns error message or None."""
+    from ..competition.competition_model import Competition
+    from ..enums.competition_status import CompetitionStatus
+
+    today = date.today()
+
+    # Allow finish if end_date has passed
+    if today > event.end_date:
+        return None
+
+    # Otherwise all competitions must be finished or cancelled
+    unfinished = db.query(Competition).filter(
+        Competition.event_id == event.id,
+        Competition.status.notin_([CompetitionStatus.FINISHED, CompetitionStatus.CANCELLED])
+    ).count()
+
+    if unfinished > 0:
+        return f'Cannot finish event: {unfinished} competition(s) are not finished or cancelled'
+
+    return None
+
+
 def get_competitions_brief(db: Session, event_id: int) -> list[dict]:
     """Get brief competition info for an event (used in list/detail responses)."""
     from ..competition.competition_model import Competition

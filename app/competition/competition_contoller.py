@@ -240,6 +240,24 @@ async def update_competition(
             detail=f'Invalid status transition from {competition.status.value} to {data.status.value}'
         )
 
+    # Validate → IN_PROGRESS transition
+    if data.status == CompetitionStatus.IN_PROGRESS and competition.status != CompetitionStatus.IN_PROGRESS:
+        error = competition_crud.validate_competition_for_in_progress(db, competition)
+        if error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error
+            )
+
+    # Validate → FINISHED transition
+    if data.status == CompetitionStatus.FINISHED and competition.status != CompetitionStatus.FINISHED:
+        error = competition_crud.validate_competition_for_finished(db, competition)
+        if error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error
+            )
+
     updated = competition_crud.update_competition(db, competition, data)
 
     from . import distance_crud

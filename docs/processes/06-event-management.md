@@ -63,6 +63,22 @@ draft ↔ planned ──► in_progress ──► finished
 | `finished` | Completed. Auto-finishes/cancels all child competitions. | Yes |
 | `cancelled` | Cancelled | Yes |
 
+### Single vs Multi-Stage Events
+
+Status management differs by event format:
+
+**Single-format events** (`event_format=single`):
+- Competition status is **auto-synced** with event status. The organizer only manages the event status; the child competition transitions automatically:
+  - Event `draft → planned` → Competition becomes `registration_open`
+  - Event `planned → in_progress` → Competition becomes `in_progress`
+  - Event `in_progress → finished` → Competition becomes `finished`
+  - Event `→ cancelled` → Competition becomes `cancelled`
+- Competition status cannot be changed independently.
+
+**Multi-stage events** (`event_format=multi_stage`):
+- Competition statuses are **independent** of event status. Each competition has its own lifecycle (see [08. Competition Management](./08-competition-management.md)).
+- When event transitions to `finished`, all child competitions are auto-transitioned: `in_progress` → `finished`, others → `cancelled`.
+
 **Note:** Registration is managed at the competition level, not the event level. Event responses include a computed `has_open_registration` field indicating whether any competition has `registration_open` status.
 
 ---
@@ -243,6 +259,17 @@ Frontend uses `recruitment_open` + `needed_roles` to decide whether to show a "J
 | `in_progress` | `finished` (cascades to competitions), `cancelled` |
 | `finished` | — (terminal) |
 | `cancelled` | — (terminal) |
+
+**Additional transition conditions:**
+
+| Transition | Condition |
+|------------|-----------|
+| → `in_progress` | Current date must be ≥ `event.start_date` |
+| → `finished` | All competitions must have status `finished` or `cancelled`, **OR** current date > `event.end_date` |
+
+**Single-format event:** Changing event status auto-syncs the child competition status (see "Single vs Multi-Stage Events" above). The organizer manages status solely through the event endpoint.
+
+**Multi-stage event:** Competitions are managed independently. The `→ finished` condition ensures all competitions are wrapped up before the event can finish (unless end date has passed).
 
 **Cascade on FINISHED:** When event transitions to `finished`, all child competitions auto-transition: `in_progress` → `finished`, others (`planned`/`registration_open`/`registration_closed`) → `cancelled`.
 

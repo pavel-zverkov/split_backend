@@ -319,6 +319,24 @@ async def update_event(
                 detail=error
             )
 
+    # Validate → IN_PROGRESS transition
+    if data.status == EventStatus.IN_PROGRESS and event.status != EventStatus.IN_PROGRESS:
+        error = event_crud.validate_event_for_in_progress(event)
+        if error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error
+            )
+
+    # Validate → FINISHED transition
+    if data.status == EventStatus.FINISHED and event.status != EventStatus.FINISHED:
+        error = event_crud.validate_event_for_finished(db, event)
+        if error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error
+            )
+
     old_status = event.status
     updated_event = event_crud.update_event(db, event, data)
 

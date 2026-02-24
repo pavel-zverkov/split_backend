@@ -17,7 +17,9 @@ A **Competition** is a single race/contest within an event. Events can have one 
 
 ### Competition Status
 
-Competition status is **independent** of event status. Each competition has its own lifecycle, including registration control:
+**Multi-stage events:** Competition status is **independent** of event status. Each competition has its own lifecycle, including registration control.
+
+**Single-format events:** Competition status is **auto-synced** with event status (see [06. Event Management](./06-event-management.md#single-vs-multi-stage-events)). The status transitions and conditions below apply only to multi-stage event competitions.
 
 | Status | Description |
 |--------|-------------|
@@ -38,13 +40,20 @@ Competition status is **independent** of event status. Each competition has its 
 | `finished` | — (terminal) |
 | `cancelled` | — (terminal) |
 
-**Example:** Event runs Feb 1-8 with daily competitions:
+**Additional transition conditions:**
+
+| Transition | Condition |
+|------------|-----------|
+| → `in_progress` | Current date must be ≥ `competition.date`. For `separated_start`: all registered/confirmed athletes must have `bib_number` and `start_time` set. For `mass_start`: all registered/confirmed athletes must have `bib_number` set. For `free`: no start list requirements. |
+| → `finished` | Current date must be > `competition.date` (cannot finish on competition day). All registered/confirmed athletes must have a Result record. |
+
+**Example (multi-stage):** Event runs Feb 1-8 with daily competitions:
 - Event status: `in_progress` (Feb 3)
 - Feb 1 competition: `finished`
 - Feb 3 competition: `in_progress`
 - Feb 5 competition: `registration_open`
 
-**Note:** When the parent event transitions to `finished`, all child competitions are auto-transitioned: `in_progress` → `finished`, others → `cancelled`.
+**Note (multi-stage):** When the parent event transitions to `finished`, all child competitions are auto-transitioned: `in_progress` → `finished`, others → `cancelled`.
 
 ### Control Points
 
@@ -202,15 +211,8 @@ By default, all event team members are assigned to all competitions. This can be
 
 **Restrictions:**
 - Cannot modify `class_list` or `control_points_list` if Results exist
-- Cannot change `status` to `finished` if there are registrations with `registered` status (not started)
 
-**Status transition rules:**
-| From | Allowed To |
-|------|------------|
-| `planned` | `in_progress`, `cancelled` |
-| `in_progress` | `finished`, `cancelled` |
-| `finished` | — (terminal) |
-| `cancelled` | — (terminal) |
+**Status transition rules:** See status transitions table above. Additional conditions apply for `→ in_progress` (date + start list readiness) and `→ finished` (date + all results present).
 
 **Response:** `200 OK` (updated competition object)
 
