@@ -87,7 +87,7 @@ sequenceDiagram
   "status": "processing",
   "start_datetime": null,
   "finish_datetime": null,
-  "duration_seconds": null,
+  "duration_ms": null,
   "distance_meters": null,
   "elevation_gain": null,
   "has_splits": false,
@@ -110,7 +110,7 @@ sequenceDiagram
 - `sport_kind` — filter by sport
 - `status` — filter by status
 - `date_from`, `date_to` — date range
-- `sort_by` — `start_datetime` (default), `created_at`, `duration_seconds`, `distance_meters`
+- `sort_by` — `start_datetime` (default), `created_at`, `distance_meters`
 - `order` — `desc` (default), `asc`
 - `limit`, `offset` — pagination
 
@@ -125,7 +125,7 @@ sequenceDiagram
       "privacy": "followers",
       "status": "ready",
       "start_datetime": "2024-01-20T07:30:00Z",
-      "duration_seconds": 3600,
+      "duration_ms": 3600000,
       "distance_meters": 8500,
       "elevation_gain": 120,
       "has_splits": true,
@@ -166,7 +166,7 @@ sequenceDiagram
   "status": "ready",
   "start_datetime": "2024-01-20T07:30:00Z",
   "finish_datetime": "2024-01-20T08:30:00Z",
-  "duration_seconds": 3600,
+  "duration_ms": 3600000,
   "distance_meters": 8500,
   "elevation_gain": 120,
   "splits": [
@@ -175,16 +175,16 @@ sequenceDiagram
       "sequence": 1,
       "control_point": "31",
       "distance_meters": 1200,
-      "cumulative_time": 420,
-      "split_time": 420
+      "cumulative_time": 420000,
+      "split_time": 420000
     },
     {
       "id": 2,
       "sequence": 2,
       "control_point": "45",
       "distance_meters": 2400,
-      "cumulative_time": 850,
-      "split_time": 430
+      "cumulative_time": 850000,
+      "split_time": 430000
     }
   ],
   "artifacts": [
@@ -199,7 +199,7 @@ sequenceDiagram
     "competition_id": 1,
     "competition_name": "Day 1 - Long Distance",
     "position": 3,
-    "time_total": 3845
+    "time_total": 3845000
   },
   "created_at": "2024-01-20T10:00:00Z"
 }
@@ -246,7 +246,7 @@ sequenceDiagram
       "sport_kind": "orient",
       "status": "ready",
       "start_datetime": "2024-01-20T07:30:00Z",
-      "duration_seconds": 3600,
+      "duration_ms": 3600000,
       "distance_meters": 8500,
       "has_splits": true,
       "created_at": "2024-01-20T10:00:00Z"
@@ -276,7 +276,7 @@ sequenceDiagram
 
 **Updatable fields:** `title`, `description`, `privacy`, `sport_kind`
 
-**Note:** Cannot update computed fields (`duration_seconds`, `distance_meters`, etc.) or replace file.
+**Note:** Cannot update computed fields (`duration_ms`, `distance_meters`, `elevation_gain`, etc.) or replace file.
 
 **Response:** `200 OK` (updated workout object)
 
@@ -303,5 +303,52 @@ sequenceDiagram
 5. Delete Workout record
 
 **Response:** `204 No Content`
+
+---
+
+## Time Units
+
+**All time fields use milliseconds (integer).**
+
+| Field | Unit | Example |
+|-------|------|---------|
+| `duration_ms` | ms | `3600000` = 1 hour |
+| `cumulative_time` (splits) | ms | `420000` = 7m 0s |
+| `split_time` (splits) | ms | `430000` = 7m 10s |
+| `time_total` (linked result) | ms | `3845000` = ~64m 5s |
+
+### Why milliseconds?
+
+- FIT files (Garmin, Polar, etc.) natively use milliseconds for timestamps and durations
+- Supports sub-second precision for sprint events and fast sports
+- Single consistent unit across all time fields in the API
+
+### Frontend: displaying duration
+
+```js
+// ms → "HH:MM:SS" or "MM:SS"
+function formatDuration(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+// 3600000 → "1:00:00"
+// 420000  → "7:00"
+```
+
+### Frontend: sending duration
+
+```js
+// "HH:MM:SS" or "MM:SS" → ms
+function parseDurationToMs(str) {
+  const parts = str.trim().split(':').map(Number);
+  if (parts.length === 2) return (parts[0] * 60 + parts[1]) * 1000;
+  if (parts.length === 3) return (parts[0] * 3600 + parts[1] * 60 + parts[2]) * 1000;
+  throw new Error('Invalid duration format');
+}
+```
 
 ---

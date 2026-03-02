@@ -134,6 +134,53 @@ def build_splits_response(splits) -> list[SplitResponse]:
     ]
 
 
+def build_splits_detail_response(
+    db: Session,
+    result,
+    competition_id: int,
+) -> list[SplitDetailResponse]:
+    """Build SplitDetailResponse list with class and distance positions for each split."""
+    response = []
+    for split in sorted(result.splits, key=lambda x: x.sequence):
+        cp = split.control_point
+
+        class_split_pos = (None, None)
+        class_cum_pos = (None, None)
+        if result.class_:
+            class_split_pos = result_crud.get_split_positions(
+                db, competition_id, result.class_, cp
+            ).get(result.id, (None, None))
+            class_cum_pos = result_crud.get_cumulative_positions(
+                db, competition_id, result.class_, cp
+            ).get(result.id, (None, None))
+
+        dist_split_pos = (None, None)
+        dist_cum_pos = (None, None)
+        if result.distance_id:
+            dist_split_pos = result_crud.get_split_positions_by_distance(
+                db, competition_id, result.distance_id, cp
+            ).get(result.id, (None, None))
+            dist_cum_pos = result_crud.get_cumulative_positions_by_distance(
+                db, competition_id, result.distance_id, cp
+            ).get(result.id, (None, None))
+
+        response.append(SplitDetailResponse(
+            control_point=cp,
+            sequence=split.sequence,
+            cumulative_time=split.cumulative_time,
+            split_time=split.split_time,
+            position=class_split_pos[0],
+            time_behind_best=class_split_pos[1],
+            position_in_distance=dist_split_pos[0],
+            time_behind_best_in_distance=dist_split_pos[1],
+            cumulative_position=class_cum_pos[0],
+            cumulative_time_behind_best=class_cum_pos[1],
+            cumulative_position_in_distance=dist_cum_pos[0],
+            cumulative_time_behind_best_in_distance=dist_cum_pos[1],
+        ))
+    return response
+
+
 # ===== 11.1 Create Result =====
 
 @result_router.post('/api/competitions/{competition_id}/results', response_model=ResultResponse, status_code=status.HTTP_201_CREATED)
@@ -364,22 +411,7 @@ async def get_my_result(
         )
 
     # Build splits with positions
-    splits_response = []
-    if result.splits and result.class_:
-        for split in sorted(result.splits, key=lambda x: x.sequence):
-            positions = result_crud.get_split_positions(
-                db, competition_id, result.class_, split.control_point
-            )
-            pos_data = positions.get(result.id, (None, None))
-
-            splits_response.append(SplitDetailResponse(
-                control_point=split.control_point,
-                sequence=split.sequence,
-                cumulative_time=split.cumulative_time,
-                split_time=split.split_time,
-                position=pos_data[0],
-                time_behind_best=pos_data[1],
-            ))
+    splits_response = build_splits_detail_response(db, result, competition_id) if result.splits else []
 
     return ResultDetailResponse(
         id=result.id,
@@ -421,23 +453,7 @@ async def get_result_detail(
         )
 
     # Build splits with positions
-    splits_response = []
-    if result.splits and result.class_:
-        for split in sorted(result.splits, key=lambda x: x.sequence):
-            # Get position for this split
-            positions = result_crud.get_split_positions(
-                db, competition_id, result.class_, split.control_point
-            )
-            pos_data = positions.get(result.id, (None, None))
-
-            splits_response.append(SplitDetailResponse(
-                control_point=split.control_point,
-                sequence=split.sequence,
-                cumulative_time=split.cumulative_time,
-                split_time=split.split_time,
-                position=pos_data[0],
-                time_behind_best=pos_data[1],
-            ))
+    splits_response = build_splits_detail_response(db, result, competition_id) if result.splits else []
 
     return ResultDetailResponse(
         id=result.id,

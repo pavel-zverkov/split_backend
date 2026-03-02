@@ -26,8 +26,16 @@ class SplitDetailResponse(BaseModel):
     sequence: int
     cumulative_time: int
     split_time: int
-    position: int | None = None
-    time_behind_best: int | None = None
+    # --- split leg positions ---
+    position: int | None = None                                      # rank by split_time in class
+    time_behind_best: int | None = None                              # ms behind best split_time in class
+    position_in_distance: int | None = None                          # rank by split_time in distance
+    time_behind_best_in_distance: int | None = None                  # ms behind best split_time in distance
+    # --- cumulative positions ---
+    cumulative_position: int | None = None                           # rank by cumulative_time in class
+    cumulative_time_behind_best: int | None = None                   # ms behind best cumulative_time in class
+    cumulative_position_in_distance: int | None = None               # rank by cumulative_time in distance
+    cumulative_time_behind_best_in_distance: int | None = None       # ms behind best cumulative_time in distance
 
     model_config = {'from_attributes': True}
 

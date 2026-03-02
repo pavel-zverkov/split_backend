@@ -42,7 +42,7 @@ def create_workout(
         sport_kind=data.sport_kind,
         start_datetime=data.start_datetime,
         finish_datetime=data.finish_datetime,
-        duration_seconds=data.duration_seconds,
+        duration_ms=data.duration_ms,
         distance_meters=data.distance_meters,
         elevation_gain=data.elevation_gain,
         privacy=data.privacy,

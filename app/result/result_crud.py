@@ -310,7 +310,7 @@ def get_split_positions(
     competition_class: str,
     control_point: str
 ) -> dict[int, tuple[int, int]]:
-    """Get position and time_behind_best for each result at a control point.
+    """Get position and time_behind_best for each result at a control point within a class.
     Returns {result_id: (position, time_behind_best)}
     """
     splits = db.query(
@@ -334,6 +334,94 @@ def get_split_positions(
         positions[result_id] = (i, split_time - best_time)
 
     return positions
+
+
+def get_split_positions_by_distance(
+    db: Session,
+    competition_id: int,
+    distance_id: int,
+    control_point: str
+) -> dict[int, tuple[int, int]]:
+    """Get position and time_behind_best for each result at a control point within a distance.
+    Returns {result_id: (position, time_behind_best)}
+    """
+    splits = db.query(
+        ResultSplit.result_id,
+        ResultSplit.split_time
+    ).join(Result).filter(
+        Result.competition_id == competition_id,
+        Result.distance_id == distance_id,
+        Result.status == ResultStatus.OK,
+        ResultSplit.control_point == control_point
+    ).order_by(
+        ResultSplit.split_time.asc()
+    ).all()
+
+    if not splits:
+        return {}
+
+    best_time = splits[0][1]
+    positions = {}
+    for i, (result_id, split_time) in enumerate(splits, start=1):
+        positions[result_id] = (i, split_time - best_time)
+
+    return positions
+
+
+def get_cumulative_positions(
+    db: Session,
+    competition_id: int,
+    competition_class: str,
+    control_point: str
+) -> dict[int, tuple[int, int]]:
+    """Get position and time_behind_best by cumulative_time at a control point within a class.
+    Returns {result_id: (position, time_behind_best)}
+    """
+    splits = db.query(
+        ResultSplit.result_id,
+        ResultSplit.cumulative_time
+    ).join(Result).filter(
+        Result.competition_id == competition_id,
+        Result.class_ == competition_class,
+        Result.status == ResultStatus.OK,
+        ResultSplit.control_point == control_point
+    ).order_by(
+        ResultSplit.cumulative_time.asc()
+    ).all()
+
+    if not splits:
+        return {}
+
+    best_time = splits[0][1]
+    return {result_id: (i, cum - best_time) for i, (result_id, cum) in enumerate(splits, start=1)}
+
+
+def get_cumulative_positions_by_distance(
+    db: Session,
+    competition_id: int,
+    distance_id: int,
+    control_point: str
+) -> dict[int, tuple[int, int]]:
+    """Get position and time_behind_best by cumulative_time at a control point within a distance.
+    Returns {result_id: (position, time_behind_best)}
+    """
+    splits = db.query(
+        ResultSplit.result_id,
+        ResultSplit.cumulative_time
+    ).join(Result).filter(
+        Result.competition_id == competition_id,
+        Result.distance_id == distance_id,
+        Result.status == ResultStatus.OK,
+        ResultSplit.control_point == control_point
+    ).order_by(
+        ResultSplit.cumulative_time.asc()
+    ).all()
+
+    if not splits:
+        return {}
+
+    best_time = splits[0][1]
+    return {result_id: (i, cum - best_time) for i, (result_id, cum) in enumerate(splits, start=1)}
 
 
 # ===== Permission Checks =====
