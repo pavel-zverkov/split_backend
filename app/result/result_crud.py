@@ -135,6 +135,7 @@ def get_results(
     db: Session,
     competition_id: int,
     competition_class: str | None = None,
+    distance_id: int | None = None,
     status: ResultStatus | None = None,
     limit: int = 20,
     offset: int = 0
@@ -143,6 +144,8 @@ def get_results(
 
     if competition_class:
         q = q.filter(Result.class_ == competition_class)
+    if distance_id:
+        q = q.filter(Result.distance_id == distance_id)
     if status:
         q = q.filter(Result.status == status)
 
@@ -170,6 +173,34 @@ def get_class_summaries(db: Session, competition_id: int) -> list[dict]:
             'leader_time': r[2]
         }
         for r in results
+    ]
+
+
+def get_distance_summaries(db: Session, competition_id: int) -> list[dict]:
+    """Get distance summaries with counts and leader times."""
+    from ..competition.distance_model import Distance
+
+    rows = db.query(
+        Result.distance_id,
+        Distance.name,
+        func.count(Result.id).label('count'),
+        func.min(Result.time_total).filter(Result.status == ResultStatus.OK).label('leader_time')
+    ).join(Distance, Result.distance_id == Distance.id).filter(
+        Result.competition_id == competition_id,
+        Result.distance_id.isnot(None),
+    ).group_by(
+        Result.distance_id,
+        Distance.name,
+    ).all()
+
+    return [
+        {
+            'distance_id': r[0],
+            'distance_name': r[1],
+            'count': r[2],
+            'leader_time': r[3],
+        }
+        for r in rows
     ]
 
 
@@ -209,6 +240,31 @@ def recalculate_positions(db: Session, competition_id: int) -> tuple[int, int]:
             result.time_behind_leader = result.time_total - class_leaders[cls]
         else:
             result.time_behind_leader = None
+
+    # Calculate distance positions and time_behind_distance_leader
+    from collections import defaultdict
+    dist_groups: dict[int, list] = defaultdict(list)
+    for result in results:
+        if result.distance_id is not None:
+            dist_groups[result.distance_id].append(result)
+        else:
+            result.position_in_distance = None
+            result.time_behind_distance_leader = None
+
+    for dist_results in dist_groups.values():
+        dist_sorted = sorted(
+            dist_results,
+            key=lambda r: (r.status != ResultStatus.OK, r.time_total or float('inf'))
+        )
+        dist_leader_time = None
+        for i, result in enumerate(dist_sorted, start=1):
+            result.position_in_distance = i
+            if result.status == ResultStatus.OK and result.time_total:
+                if dist_leader_time is None:
+                    dist_leader_time = result.time_total
+                result.time_behind_distance_leader = result.time_total - dist_leader_time
+            else:
+                result.time_behind_distance_leader = None
 
     # Calculate overall positions
     all_sorted = sorted(

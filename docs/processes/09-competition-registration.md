@@ -122,7 +122,7 @@ rejected ──► (can re-apply) ──► pending
 3. Verify user is not already registered
 4. Validate class is in `class_list`
 5. Validate bib_number is unique (if provided)
-6. If `start_time` provided: validate it falls on `competition.date`; if `competition.start_time` is set, validate athlete's `start_time ≥ competition.start_time`
+6. If `start_time` provided — apply start time rules (see [Start Time Rules](#start-time-rules) below)
 7. Create registration with `status=registered`
 
 **Response:** `201 Created`
@@ -143,8 +143,7 @@ rejected ──► (can re-apply) ──► pending
 - `400` - User already registered for this competition
 - `400` - Invalid class (not in class_list)
 - `400` - Bib number already assigned
-- `400` - Athlete start time must be on the competition date
-- `400` - Athlete start time cannot be earlier than competition start time
+- `400` - Start time validation error (see [Start Time Rules](#start-time-rules))
 - `403` - Caller is not organizer or secretary
 - `404` - Competition or user not found
 
@@ -293,7 +292,7 @@ rejected ──► (can re-apply) ──► pending
 
 **Flow:**
 1. Validate bib_number is unique within competition (if provided)
-2. If `start_time` provided: validate it falls on `competition.date`; if `competition.start_time` is set, validate athlete's `start_time ≥ competition.start_time`
+2. If `start_time` provided — apply start time rules (see [Start Time Rules](#start-time-rules) below)
 3. Validate class is in `class_list` (if provided)
 4. Update registration
 5. Notify participant if bib/start_time assigned
@@ -302,8 +301,7 @@ rejected ──► (can re-apply) ──► pending
 
 **Errors:**
 - `400` - Bib number already assigned
-- `400` - Athlete start time must be on the competition date
-- `400` - Athlete start time cannot be earlier than competition start time
+- `400` - Start time validation error (see [Start Time Rules](#start-time-rules))
 - `400` - Invalid class
 
 ## 9.6 Batch Assign Bibs and Start Times
@@ -326,7 +324,7 @@ rejected ──► (can re-apply) ──► pending
 
 **Flow:**
 1. Validate all bib_numbers are unique within batch and competition
-2. For each item with `start_time`: validate it falls on `competition.date`; if `competition.start_time` is set, validate athlete's `start_time ≥ competition.start_time`
+2. For each item with `start_time` — apply start time rules (see [Start Time Rules](#start-time-rules) below)
 3. Update all registrations
 4. Optionally set status for all (default: `confirmed`)
 5. Notify all affected participants
@@ -346,8 +344,7 @@ rejected ──► (can re-apply) ──► pending
 **Errors:**
 - `400` - Duplicate bib numbers in batch
 - `400` - Invalid registration_id
-- `400` - Athlete start time must be on the competition date (`{first_name} {last_name}`)
-- `400` - Athlete start time cannot be earlier than competition start time (`{first_name} {last_name}`)
+- `400` - Start time validation error (see [Start Time Rules](#start-time-rules))
 
 ## 9.7 Cancel My Registration
 
@@ -392,5 +389,33 @@ rejected ──► (can re-apply) ──► pending
 
 **Errors:**
 - `400` - Cannot delete: result exists
+
+---
+
+## Start Time Rules
+
+Applies to 9.1b (create), 9.5 (update), and 9.6 (batch) whenever `start_time` is provided.
+
+### `separated_start` and `free`
+
+| Rule | Detail |
+|------|--------|
+| Must be on competition date | `start_time.date == competition.date` |
+| Must not be before competition start | If `competition.start_time` is set: `start_time ≥ competition.start_time` |
+
+### `mass_start`
+
+| Rule | Detail |
+|------|--------|
+| Must not be before competition start | If `competition.start_time` is set: `start_time ≥ competition.start_time` |
+| All athletes in the same class must share one start time | If other athletes in the class already have a `start_time`, the new value must match it |
+
+**Batch additional rules for `mass_start`:**
+
+| Rule | Detail |
+|------|--------|
+| Per-class uniformity | All `start_time` values within the same class in the batch must be identical |
+| Full class coverage | The batch must include **all** registrations of each class being assigned a start time |
+| No conflict with existing class time | If athletes of that class outside the batch already have a `start_time`, the batch time must match it |
 
 ---

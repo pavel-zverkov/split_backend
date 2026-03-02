@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 from datetime import timedelta
 from typing import Annotated
 
@@ -23,6 +24,7 @@ from .result_schema import (
     ResultUserBrief,
     CompetitionBrief,
     ClassSummary,
+    DistanceSummary,
     SplitResponse,
     SplitDetailResponse,
     RecalculateResponse,
@@ -34,6 +36,40 @@ from .result_schema import (
 )
 
 result_router = APIRouter(tags=['results'])
+
+
+def parse_time_to_ms(value: str) -> int:
+    """Parse a time string to milliseconds.
+
+    Accepts:
+      - Raw integer (ms):   "2415300"
+      - MM:SS:              "40:15"
+      - MM:SS.s:            "40:15.3"  (tenths/hundredths/ms)
+      - HH:MM:SS:           "1:40:15"
+      - HH:MM:SS.s:         "1:40:15.35"
+    """
+    value = value.strip()
+
+    # Raw integer — treat as milliseconds
+    try:
+        return int(value)
+    except ValueError:
+        pass
+
+    # [H:]MM:SS[.frac]
+    m = re.fullmatch(r'(?:(\d+):)?(\d{1,2}):(\d{2})(?:\.(\d+))?', value)
+    if not m:
+        raise ValueError(f'Cannot parse time: {value!r}')
+
+    hours = int(m.group(1) or 0)
+    minutes = int(m.group(2))
+    seconds = int(m.group(3))
+    frac = m.group(4) or '0'
+
+    # Normalise fraction to milliseconds (pad or truncate to 3 digits)
+    frac_ms = int(frac[:3].ljust(3, '0'))
+
+    return (hours * 3600 + minutes * 60 + seconds) * 1000 + frac_ms
 
 
 def trigger_total_recalculation(db: Session, competition_id: int) -> None:
@@ -79,6 +115,11 @@ def build_user_brief(db: Session, user: User) -> ResultUserBrief:
         last_name=user.last_name,
         club=club,
     )
+
+
+def get_bib_number(db: Session, user_id: int, competition_id: int) -> str | None:
+    reg = get_registration_by_user(db, user_id, competition_id)
+    return reg.bib_number if reg else None
 
 
 def build_splits_response(splits) -> list[SplitResponse]:
@@ -201,6 +242,7 @@ async def create_result(
         competition_id=result.competition_id,
         distance_id=result.distance_id,
         workout_id=result.workout_id,
+        bib_number=registration.bib_number,
         competition_class=result.class_,
         position=result.position,
         position_overall=result.position_overall,
@@ -218,6 +260,7 @@ async def create_result(
 async def list_results(
     competition_id: int,
     competition_class: str | None = Query(None, alias='class'),
+    distance_id: int | None = Query(None),
     result_status: str | None = Query(None, alias='status'),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -242,6 +285,7 @@ async def list_results(
     results, total = result_crud.get_results(
         db, competition_id,
         competition_class=competition_class,
+        distance_id=distance_id,
         status=status_filter,
         limit=limit,
         offset=offset
@@ -253,16 +297,22 @@ async def list_results(
         items.append(ResultListItem(
             id=r.id,
             user=build_user_brief(db, r.user),
+            bib_number=get_bib_number(db, r.user_id, competition_id),
+            distance_id=r.distance_id,
+            distance_name=r.distance.name if r.distance else None,
             competition_class=r.class_,
-            position=r.position,
+            position_in_class=r.position,
+            position_in_distance=r.position_in_distance,
             time_total=r.time_total,
             time_behind_leader=r.time_behind_leader,
+            time_behind_distance_leader=r.time_behind_distance_leader,
             status=r.status,
             has_splits=len(r.splits) > 0 if r.splits else False,
         ))
 
-    # Get class summaries
+    # Get summaries
     class_summaries = result_crud.get_class_summaries(db, competition_id)
+    distance_summaries = result_crud.get_distance_summaries(db, competition_id)
 
     return ResultsListResponse(
         competition=CompetitionBrief(
@@ -278,6 +328,15 @@ async def list_results(
                 leader_time=s['leader_time'],
             )
             for s in class_summaries
+        ],
+        distances=[
+            DistanceSummary(
+                distance_id=s['distance_id'],
+                distance_name=s['distance_name'],
+                count=s['count'],
+                leader_time=s['leader_time'],
+            )
+            for s in distance_summaries
         ],
         total=total,
         limit=limit,
@@ -331,6 +390,7 @@ async def get_my_result(
             date=str(competition.date),
         ),
         workout_id=result.workout_id,
+        bib_number=get_bib_number(db, result.user_id, competition_id),
         competition_class=result.class_,
         position=result.position,
         position_overall=result.position_overall,
@@ -388,6 +448,7 @@ async def get_result_detail(
             date=str(competition.date),
         ),
         workout_id=result.workout_id,
+        bib_number=get_bib_number(db, result.user_id, competition_id),
         competition_class=result.class_,
         position=result.position,
         position_overall=result.position_overall,
@@ -487,6 +548,7 @@ async def update_result(
         competition_id=updated.competition_id,
         distance_id=updated.distance_id,
         workout_id=updated.workout_id,
+        bib_number=get_bib_number(db, updated.user_id, competition_id),
         competition_class=updated.class_,
         position=updated.position,
         position_overall=updated.position_overall,
@@ -647,12 +709,12 @@ async def import_results(
         time_total = None
         if row.get('time_total'):
             try:
-                time_total = int(row['time_total'])
+                time_total = parse_time_to_ms(row['time_total'])
             except ValueError:
                 errors.append(ImportResultItem(
                     row=row_num,
                     bib_number=bib_number,
-                    error='Invalid time_total'
+                    error='Invalid time_total — use ms integer or MM:SS[.s] / HH:MM:SS[.s]'
                 ))
                 continue
 
@@ -669,13 +731,13 @@ async def import_results(
             col = f'split_{cp}'
             if col in row and row[col]:
                 try:
-                    cumulative = int(row[col])
+                    cumulative = parse_time_to_ms(row[col])
                     splits_data.append({
                         'control_point': cp,
                         'cumulative_time': cumulative
                     })
                 except ValueError:
-                    pass
+                    pass  # Skip unparseable split value
 
         # Resolve distance for this registration's class
         reg_distance = class_to_distance.get(registration.class_) if registration.class_ else None

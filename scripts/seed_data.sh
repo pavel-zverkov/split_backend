@@ -1161,55 +1161,55 @@ create_result "$E7_C1_ID" "$TOKEN_ORG1" "{
 }"
 ok "E7 C1: 5 results"
 
-# E7 C2 (10K — CPs: S, 2K, 5K, 8K, F)
+# E7 C2 (10K — CPs: S, 2K, 5K, 8K, F) — all times in seconds
 create_result "$E7_C2_ID" "$TOKEN_ORG1" "{
-  \"user_id\": $ID_ATH1, \"class\": \"Open\", \"time_total\": 2400000, \"status\": \"ok\",
+  \"user_id\": $ID_ATH1, \"class\": \"Open\", \"time_total\": 2400, \"status\": \"ok\",
   \"splits\": [
     {\"control_point\": \"S\", \"cumulative_time\": 0},
-    {\"control_point\": \"2K\", \"cumulative_time\": 480000},
-    {\"control_point\": \"5K\", \"cumulative_time\": 1200000},
-    {\"control_point\": \"8K\", \"cumulative_time\": 1920000},
-    {\"control_point\": \"F\", \"cumulative_time\": 2400000}
+    {\"control_point\": \"2K\", \"cumulative_time\": 480},
+    {\"control_point\": \"5K\", \"cumulative_time\": 1200},
+    {\"control_point\": \"8K\", \"cumulative_time\": 1920},
+    {\"control_point\": \"F\", \"cumulative_time\": 2400}
   ]
 }"
 create_result "$E7_C2_ID" "$TOKEN_ORG1" "{
-  \"user_id\": $ID_ATH2, \"class\": \"Open\", \"time_total\": 2500000, \"status\": \"ok\",
+  \"user_id\": $ID_ATH2, \"class\": \"Open\", \"time_total\": 2500, \"status\": \"ok\",
   \"splits\": [
     {\"control_point\": \"S\", \"cumulative_time\": 0},
-    {\"control_point\": \"2K\", \"cumulative_time\": 500000},
-    {\"control_point\": \"5K\", \"cumulative_time\": 1250000},
-    {\"control_point\": \"8K\", \"cumulative_time\": 2000000},
-    {\"control_point\": \"F\", \"cumulative_time\": 2500000}
+    {\"control_point\": \"2K\", \"cumulative_time\": 500},
+    {\"control_point\": \"5K\", \"cumulative_time\": 1250},
+    {\"control_point\": \"8K\", \"cumulative_time\": 2000},
+    {\"control_point\": \"F\", \"cumulative_time\": 2500}
   ]
 }"
 create_result "$E7_C2_ID" "$TOKEN_ORG1" "{
-  \"user_id\": $ID_ATH3, \"class\": \"Open\", \"time_total\": 2600000, \"status\": \"ok\",
+  \"user_id\": $ID_ATH3, \"class\": \"Open\", \"time_total\": 2600, \"status\": \"ok\",
   \"splits\": [
     {\"control_point\": \"S\", \"cumulative_time\": 0},
-    {\"control_point\": \"2K\", \"cumulative_time\": 520000},
-    {\"control_point\": \"5K\", \"cumulative_time\": 1300000},
-    {\"control_point\": \"8K\", \"cumulative_time\": 2080000},
-    {\"control_point\": \"F\", \"cumulative_time\": 2600000}
+    {\"control_point\": \"2K\", \"cumulative_time\": 520},
+    {\"control_point\": \"5K\", \"cumulative_time\": 1300},
+    {\"control_point\": \"8K\", \"cumulative_time\": 2080},
+    {\"control_point\": \"F\", \"cumulative_time\": 2600}
   ]
 }"
 create_result "$E7_C2_ID" "$TOKEN_ORG1" "{
-  \"user_id\": $ID_ATH4, \"class\": \"Senior\", \"time_total\": 2700000, \"status\": \"ok\",
+  \"user_id\": $ID_ATH4, \"class\": \"Senior\", \"time_total\": 2700, \"status\": \"ok\",
   \"splits\": [
     {\"control_point\": \"S\", \"cumulative_time\": 0},
-    {\"control_point\": \"2K\", \"cumulative_time\": 540000},
-    {\"control_point\": \"5K\", \"cumulative_time\": 1350000},
-    {\"control_point\": \"8K\", \"cumulative_time\": 2160000},
-    {\"control_point\": \"F\", \"cumulative_time\": 2700000}
+    {\"control_point\": \"2K\", \"cumulative_time\": 540},
+    {\"control_point\": \"5K\", \"cumulative_time\": 1350},
+    {\"control_point\": \"8K\", \"cumulative_time\": 2160},
+    {\"control_point\": \"F\", \"cumulative_time\": 2700}
   ]
 }"
 create_result "$E7_C2_ID" "$TOKEN_ORG1" "{
-  \"user_id\": $ID_ATH5, \"class\": \"Senior\", \"time_total\": 2800000, \"status\": \"ok\",
+  \"user_id\": $ID_ATH5, \"class\": \"Senior\", \"time_total\": 2800, \"status\": \"ok\",
   \"splits\": [
     {\"control_point\": \"S\", \"cumulative_time\": 0},
-    {\"control_point\": \"2K\", \"cumulative_time\": 560000},
-    {\"control_point\": \"5K\", \"cumulative_time\": 1400000},
-    {\"control_point\": \"8K\", \"cumulative_time\": 2240000},
-    {\"control_point\": \"F\", \"cumulative_time\": 2800000}
+    {\"control_point\": \"2K\", \"cumulative_time\": 560},
+    {\"control_point\": \"5K\", \"cumulative_time\": 1400},
+    {\"control_point\": \"8K\", \"cumulative_time\": 2240},
+    {\"control_point\": \"F\", \"cumulative_time\": 2800}
   ]
 }"
 ok "E7 C2: 5 results"

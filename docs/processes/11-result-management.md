@@ -71,11 +71,12 @@ This separation allows:
    - `mass_start` — `competition.start_time` must be set
    - `free` — no restriction
 4. Validate class is in `competition.class_list`
-5. Validate splits control_points match `competition.control_points_list`
+5. Validate splits control_points match distance control points (if distance defined)
 6. Calculate `split_time` for each split (current - previous cumulative)
-7. Create Result record
-8. Create ResultSplit records
-9. Recalculate positions for the class
+7. If `time_total > distance.control_time` → force `status = dsq`
+8. Create Result record
+9. Create ResultSplit records
+10. Recalculate positions for the class
 
 **Response:** `201 Created`
 ```json
@@ -83,6 +84,7 @@ This separation allows:
   "id": 1,
   "user_id": 5,
   "competition_id": 1,
+  "distance_id": 2,
   "workout_id": null,
   "class": "M21",
   "position": 3,
@@ -106,8 +108,10 @@ This separation allows:
 - `400` - Cannot create result: athlete has no start time assigned (`separated_start`)
 - `400` - Cannot create result: competition start time is not set (`mass_start`)
 - `400` - Invalid class
-- `400` - Invalid control points (don't match competition)
+- `400` - Invalid control points (don't match distance)
 - `403` - Insufficient permissions
+
+**Note:** If `time_total` exceeds `distance.control_time`, the result is automatically assigned `status = dsq` regardless of the provided status.
 
 ## 11.2 List Results (Leaderboard)
 
@@ -117,16 +121,9 @@ This separation allows:
 
 **Query params:**
 - `class` — filter by class (e.g., `M21`)
+- `distance_id` — filter by distance
 - `status` — filter by status (`ok`, `dsq`, `dns`, `dnf`)
-- `club_id` — filter by club
-- `gender` — filter by gender
-- `sort_by` — `position` (default), `time_total`, `name`
-- `order` — `asc` (default), `desc`
 - `limit`, `offset` — pagination
-
-**Priority logic (no class param):**
-1. If user authenticated → user's class first, then others
-2. If not authenticated → all classes sorted by position
 
 **Response:** `200 OK`
 ```json
@@ -134,8 +131,7 @@ This separation allows:
   "competition": {
     "id": 1,
     "name": "Day 1 - Long Distance",
-    "date": "2024-06-15",
-    "control_points_list": ["31", "45", "78", "finish"]
+    "date": "2024-06-15"
   },
   "results": [
     {
@@ -144,13 +140,17 @@ This separation allows:
         "id": 5,
         "username_display": "ivan_petrov",
         "first_name": "Ivan",
-        "last_name": "P.",
+        "last_name": "Petrov",
         "club": {"id": 1, "name": "Moscow Orienteers"}
       },
+      "distance_id": 2,
+      "distance_name": "Long",
       "class": "M21",
-      "position": 1,
+      "position_in_class": 1,
+      "position_in_distance": 1,
       "time_total": 3725,
       "time_behind_leader": 0,
+      "time_behind_distance_leader": 0,
       "status": "ok",
       "has_splits": true
     },
@@ -160,13 +160,17 @@ This separation allows:
         "id": 8,
         "username_display": "petr_sidorov",
         "first_name": "Petr",
-        "last_name": "S.",
+        "last_name": "Sidorov",
         "club": null
       },
+      "distance_id": 2,
+      "distance_name": "Long",
       "class": "M21",
-      "position": 2,
+      "position_in_class": 2,
+      "position_in_distance": 3,
       "time_total": 3800,
       "time_behind_leader": 75,
+      "time_behind_distance_leader": 90,
       "status": "ok",
       "has_splits": true
     }
@@ -175,11 +179,23 @@ This separation allows:
     {"class": "M21", "count": 25, "leader_time": 3725},
     {"class": "W21", "count": 18, "leader_time": 4120}
   ],
+  "distances": [
+    {"distance_id": 2, "distance_name": "Long", "count": 43, "leader_time": 3725},
+    {"distance_id": 3, "distance_name": "Short", "count": 42, "leader_time": 2810}
+  ],
   "total": 85,
   "limit": 20,
   "offset": 0
 }
 ```
+
+**Position and time fields in list items:**
+| Field | Description |
+|-------|-------------|
+| `position_in_class` | Rank among athletes in the same class |
+| `position_in_distance` | Rank among all athletes on the same distance |
+| `time_behind_leader` | Seconds behind the class leader (`status=ok` only) |
+| `time_behind_distance_leader` | Seconds behind the fastest athlete on the distance (`status=ok` only) |
 
 ## 11.3 Get Result with Splits
 
@@ -201,7 +217,7 @@ This separation allows:
   "competition": {
     "id": 1,
     "name": "Day 1 - Long Distance",
-    "control_points_list": ["31", "45", "78", "finish"]
+    "date": "2024-06-15"
   },
   "workout_id": 123,
   "class": "M21",
@@ -286,8 +302,9 @@ This separation allows:
 **Flow:**
 1. Validate changes
 2. If splits provided, replace all ResultSplit records
-3. Update Result
-4. If `time_total`, `status`, or `class` changed → recalculate positions
+3. If `time_total` provided and exceeds `distance.control_time` → force `status = dsq`
+4. Update Result
+5. If `time_total`, `status`, or `class` changed → recalculate positions
 
 **Response:** `200 OK` (updated result object)
 
@@ -319,45 +336,13 @@ This separation allows:
 
 **Description:** Manually trigger position recalculation for all results.
 
-**Flow:**
-```sql
--- For each class: calculate position
-UPDATE results SET position = subq.pos
-FROM (
-  SELECT id, ROW_NUMBER() OVER (
-    PARTITION BY class
-    ORDER BY
-      CASE WHEN status = 'ok' THEN 0 ELSE 1 END,
-      time_total
-  ) as pos
-  FROM results
-  WHERE competition_id = ?
-) subq
-WHERE results.id = subq.id;
+**Recalculation logic:**
 
--- Calculate position_overall (all classes combined)
-UPDATE results SET position_overall = subq.pos
-FROM (
-  SELECT id, ROW_NUMBER() OVER (
-    ORDER BY
-      CASE WHEN status = 'ok' THEN 0 ELSE 1 END,
-      time_total
-  ) as pos
-  FROM results
-  WHERE competition_id = ?
-) subq
-WHERE results.id = subq.id;
-
--- Calculate time_behind_leader per class
-UPDATE results r SET time_behind_leader = r.time_total - leader.time_total
-FROM (
-  SELECT class, MIN(time_total) as time_total
-  FROM results
-  WHERE competition_id = ? AND status = 'ok'
-  GROUP BY class
-) leader
-WHERE r.class = leader.class AND r.competition_id = ?;
-```
+1. **`position`** — rank within class (`ok` first, then by `time_total` asc)
+2. **`position_in_distance`** — rank within distance (`ok` first, then by `time_total` asc)
+3. **`position_overall`** — rank across all classes/distances combined
+4. **`time_behind_leader`** — difference from class leader's time (`status=ok` only)
+5. **`time_behind_distance_leader`** — difference from the fastest athlete on the same distance (`status=ok` only)
 
 **Response:** `200 OK`
 ```json

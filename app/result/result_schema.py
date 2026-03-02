@@ -92,6 +92,7 @@ class ResultResponse(BaseModel):
     competition_id: int
     distance_id: int | None = None
     workout_id: int | None = None
+    bib_number: str | None = None
     competition_class: str | None = Field(None, alias='class')
     position: int | None = None
     position_overall: int | None = None
@@ -107,10 +108,15 @@ class ResultResponse(BaseModel):
 class ResultListItem(BaseModel):
     id: int
     user: ResultUserBrief
+    bib_number: str | None = None
+    distance_id: int | None = None
+    distance_name: str | None = None
     competition_class: str | None = Field(None, alias='class')
-    position: int | None = None
+    position_in_class: int | None = None
+    position_in_distance: int | None = None
     time_total: int | None = None
-    time_behind_leader: int | None = None
+    time_behind_leader: int | None = None           # vs class leader
+    time_behind_distance_leader: int | None = None  # vs distance leader
     status: ResultStatus
     has_splits: bool = False
 
@@ -125,10 +131,18 @@ class ClassSummary(BaseModel):
     model_config = {'populate_by_name': True}
 
 
+class DistanceSummary(BaseModel):
+    distance_id: int
+    distance_name: str
+    count: int
+    leader_time: int | None = None
+
+
 class ResultsListResponse(BaseModel):
     competition: CompetitionBrief
     results: list[ResultListItem]
     classes: list[ClassSummary]
+    distances: list[DistanceSummary]
     total: int
     limit: int
     offset: int
@@ -139,6 +153,7 @@ class ResultDetailResponse(BaseModel):
     user: ResultUserBrief
     competition: CompetitionBrief
     workout_id: int | None = None
+    bib_number: str | None = None
     competition_class: str | None = Field(None, alias='class')
     position: int | None = None
     position_overall: int | None = None
