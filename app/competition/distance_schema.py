@@ -14,6 +14,7 @@ class DistanceCreate(BaseModel):
     name: str
     distance_meters: int | None = None
     climb_meters: int | None = None
+    control_time: int | None = None  # seconds
     classes: list[str] | None = None
     control_points: list[ControlPointInput] | None = None
 
@@ -22,6 +23,7 @@ class DistanceUpdate(BaseModel):
     name: str | None = None
     distance_meters: int | None = None
     climb_meters: int | None = None
+    control_time: int | None = None  # seconds
     classes: list[str] | None = None
 
 
@@ -40,6 +42,7 @@ class DistanceResponse(BaseModel):
     name: str
     distance_meters: int | None = None
     climb_meters: int | None = None
+    control_time: int | None = None
     classes: list[str] | None = None
     control_points: list[ControlPointResponse] = []
     created_at: datetime
@@ -52,6 +55,7 @@ class DistanceListItem(BaseModel):
     name: str
     distance_meters: int | None = None
     climb_meters: int | None = None
+    control_time: int | None = None
     classes: list[str] | None = None
     control_points_count: int = 0
 

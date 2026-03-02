@@ -66,6 +66,7 @@ async def create_distance(
         name=distance.name,
         distance_meters=distance.distance_meters,
         climb_meters=distance.climb_meters,
+        control_time=distance.control_time,
         classes=distance.classes,
         control_points=[
             ControlPointResponse(
@@ -95,6 +96,7 @@ async def list_distances(
             name=d.name,
             distance_meters=d.distance_meters,
             climb_meters=d.climb_meters,
+            control_time=d.control_time,
             classes=d.classes,
             control_points_count=len(d.control_points),
         )
@@ -121,6 +123,7 @@ async def get_distance(
         name=distance.name,
         distance_meters=distance.distance_meters,
         climb_meters=distance.climb_meters,
+        control_time=distance.control_time,
         classes=distance.classes,
         control_points=[
             ControlPointResponse(
@@ -159,6 +162,7 @@ async def update_distance(
         name=updated.name,
         distance_meters=updated.distance_meters,
         climb_meters=updated.climb_meters,
+        control_time=updated.control_time,
         classes=updated.classes,
         control_points=[
             ControlPointResponse(

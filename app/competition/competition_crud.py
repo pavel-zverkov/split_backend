@@ -40,6 +40,7 @@ def create_competition(
         sport_kind=data.sport_kind or sport_kind,
         start_format=data.start_format,
         location=data.location,
+        start_time=data.start_time,
         status=CompetitionStatus.PLANNED,
     )
     db.add(competition)
@@ -117,6 +118,9 @@ def validate_competition_for_in_progress(db: Session, competition: Competition) 
     from ..enums.start_format import StartFormat
     from .competition_registration_model import CompetitionRegistration
     from ..enums.registration_status import RegistrationStatus
+
+    if competition.start_time is None:
+        return 'Competition start time must be set before starting'
 
     today = date_type.today()
     if today < competition.date:

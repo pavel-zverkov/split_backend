@@ -157,6 +157,39 @@ async def add_registration(
             detail='Bib number already assigned'
         )
 
+    # Validate start time
+    if data.start_time:
+        from ..enums.start_format import StartFormat
+        from .competition_registration_model import CompetitionRegistration as CR
+        naive = data.start_time.replace(tzinfo=None)
+        if competition.start_format == StartFormat.MASS_START:
+            if competition.start_time and naive < competition.start_time:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f'Athlete start time cannot be earlier than competition start time ({competition.start_time})'
+                )
+            class_start = db.query(CR.start_time).filter(
+                CR.competition_id == competition_id,
+                CR.class_ == data.competition_class,
+                CR.start_time.isnot(None),
+            ).scalar()
+            if class_start and naive != class_start:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f'For mass start, all athletes in class "{data.competition_class}" must share the same start time ({class_start})'
+                )
+        else:
+            if naive.date() != competition.date:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f'Athlete start time must be on the competition date ({competition.date})'
+                )
+            if competition.start_time and naive < competition.start_time:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f'Athlete start time cannot be earlier than competition start time ({competition.start_time})'
+                )
+
     # Create registration with registered status (organizer can confirm later)
     registration = registration_crud.create_registration(
         db, data.user_id, competition_id, data.competition_class,
@@ -252,7 +285,7 @@ async def list_registrations(
                 id=reg.user.id,
                 username_display=reg.user.username_display,
                 first_name=reg.user.first_name,
-                last_name=f"{reg.user.last_name[0]}." if reg.user.last_name else None,
+                last_name=reg.user.last_name,
                 logo=reg.user.logo,
             ),
             competition_class=reg.class_,
@@ -299,7 +332,7 @@ async def get_start_list(
                 id=reg.user.id,
                 username_display=reg.user.username_display,
                 first_name=reg.user.first_name,
-                last_name=f"{reg.user.last_name[0]}." if reg.user.last_name else None,
+                last_name=reg.user.last_name,
                 club=club_brief,
             ),
         ))
@@ -369,6 +402,41 @@ async def update_registration(
                 detail=f'Invalid class. Available: {", ".join(all_classes)}'
             )
 
+    # Validate start time
+    if data.start_time:
+        from ..enums.start_format import StartFormat
+        from .competition_registration_model import CompetitionRegistration as CR
+        naive = data.start_time.replace(tzinfo=None)
+        if competition.start_format == StartFormat.MASS_START:
+            if competition.start_time and naive < competition.start_time:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f'Athlete start time cannot be earlier than competition start time ({competition.start_time})'
+                )
+            effective_class = data.competition_class or registration.class_
+            class_start = db.query(CR.start_time).filter(
+                CR.competition_id == competition_id,
+                CR.class_ == effective_class,
+                CR.id != registration.id,
+                CR.start_time.isnot(None),
+            ).scalar()
+            if class_start and naive != class_start:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f'For mass start, all athletes in class "{effective_class}" must share the same start time ({class_start})'
+                )
+        else:
+            if naive.date() != competition.date:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f'Athlete start time must be on the competition date ({competition.date})'
+                )
+            if competition.start_time and naive < competition.start_time:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f'Athlete start time cannot be earlier than competition start time ({competition.start_time})'
+                )
+
     updated = registration_crud.update_registration(
         db, registration,
         bib_number=data.bib_number,
@@ -416,6 +484,83 @@ async def batch_update_registrations(
             detail='Duplicate bib numbers in batch'
         )
 
+    # Mass start: validate start times before processing
+    from ..enums.start_format import StartFormat
+    items_with_time = [r for r in data.registrations if r.start_time]
+    if items_with_time and competition.start_format == StartFormat.MASS_START:
+        batch_reg_ids = {r.registration_id for r in items_with_time}
+        from .competition_registration_model import CompetitionRegistration
+        batch_regs = db.query(CompetitionRegistration).filter(
+            CompetitionRegistration.id.in_(batch_reg_ids),
+            CompetitionRegistration.competition_id == competition_id,
+        ).all()
+        if len(batch_regs) != len(batch_reg_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='One or more registration IDs are invalid'
+            )
+
+        # Map registration_id -> start_time (naive)
+        reg_id_to_time = {r.registration_id: r.start_time.replace(tzinfo=None) for r in items_with_time}
+        # Map registration_id -> class
+        reg_id_to_class = {r.id: r.class_ for r in batch_regs}
+
+        from sqlalchemy import func as sql_func
+        class_counts = dict(
+            db.query(CompetitionRegistration.class_, sql_func.count())
+            .filter(CompetitionRegistration.competition_id == competition_id)
+            .group_by(CompetitionRegistration.class_)
+            .all()
+        )
+
+        # Group batch items by class
+        class_to_batch_times: dict[str | None, set] = {}
+        class_to_batch_ids: dict[str | None, set] = {}
+        for reg_id, t in reg_id_to_time.items():
+            cls = reg_id_to_class[reg_id]
+            class_to_batch_times.setdefault(cls, set()).add(t)
+            class_to_batch_ids.setdefault(cls, set()).add(reg_id)
+
+        for cls, times in class_to_batch_times.items():
+            label = cls or 'no class'
+
+            # All times within a class must be identical
+            if len(times) > 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f'All athletes in class "{label}" must have the same start time for mass start'
+                )
+            batch_time = next(iter(times))
+
+            # Must not be earlier than competition start time
+            if competition.start_time and batch_time < competition.start_time:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f'Start time for class "{label}" cannot be earlier than competition start time ({competition.start_time})'
+                )
+
+            # Batch must cover the full class
+            total = class_counts.get(cls, 0)
+            count = len(class_to_batch_ids[cls])
+            if count != total:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f'Batch must include all {total} athletes of class "{label}" for mass start (got {count})'
+                )
+
+            # Must not conflict with existing class start time
+            existing_class_time = db.query(CompetitionRegistration.start_time).filter(
+                CompetitionRegistration.competition_id == competition_id,
+                CompetitionRegistration.class_ == cls,
+                CompetitionRegistration.id.notin_(class_to_batch_ids[cls]),
+                CompetitionRegistration.start_time.isnot(None),
+            ).scalar()
+            if existing_class_time and batch_time != existing_class_time:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f'For mass start, class "{label}" already has start time {existing_class_time}'
+                )
+
     results = []
     for item in data.registrations:
         registration = registration_crud.get_registration(db, item.registration_id)
@@ -433,6 +578,24 @@ async def batch_update_registrations(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f'Bib number {item.bib_number} already assigned'
             )
+
+        # Validate start time
+        if item.start_time:
+            if competition.start_format == StartFormat.MASS_START:
+                pass  # already validated above
+            else:
+                naive = item.start_time.replace(tzinfo=None)
+                athlete = f'{registration.user.first_name} {registration.user.last_name or ""}'.strip()
+                if naive.date() != competition.date:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f'Athlete start time for {athlete} must be on the competition date ({competition.date})'
+                    )
+                if competition.start_time and naive < competition.start_time:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f'Athlete start time for {athlete} cannot be earlier than competition start time ({competition.start_time})'
+                    )
 
         updated = registration_crud.update_registration(
             db, registration,

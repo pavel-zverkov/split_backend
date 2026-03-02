@@ -122,7 +122,8 @@ rejected ──► (can re-apply) ──► pending
 3. Verify user is not already registered
 4. Validate class is in `class_list`
 5. Validate bib_number is unique (if provided)
-6. Create registration with `status=registered`
+6. If `start_time` provided: validate it falls on `competition.date`; if `competition.start_time` is set, validate athlete's `start_time ≥ competition.start_time`
+7. Create registration with `status=registered`
 
 **Response:** `201 Created`
 ```json
@@ -142,6 +143,8 @@ rejected ──► (can re-apply) ──► pending
 - `400` - User already registered for this competition
 - `400` - Invalid class (not in class_list)
 - `400` - Bib number already assigned
+- `400` - Athlete start time must be on the competition date
+- `400` - Athlete start time cannot be earlier than competition start time
 - `403` - Caller is not organizer or secretary
 - `404` - Competition or user not found
 
@@ -290,7 +293,7 @@ rejected ──► (can re-apply) ──► pending
 
 **Flow:**
 1. Validate bib_number is unique within competition (if provided)
-2. Validate start_time is within competition date (if provided)
+2. If `start_time` provided: validate it falls on `competition.date`; if `competition.start_time` is set, validate athlete's `start_time ≥ competition.start_time`
 3. Validate class is in `class_list` (if provided)
 4. Update registration
 5. Notify participant if bib/start_time assigned
@@ -299,7 +302,8 @@ rejected ──► (can re-apply) ──► pending
 
 **Errors:**
 - `400` - Bib number already assigned
-- `400` - Invalid start time
+- `400` - Athlete start time must be on the competition date
+- `400` - Athlete start time cannot be earlier than competition start time
 - `400` - Invalid class
 
 ## 9.6 Batch Assign Bibs and Start Times
@@ -322,7 +326,7 @@ rejected ──► (can re-apply) ──► pending
 
 **Flow:**
 1. Validate all bib_numbers are unique within batch and competition
-2. Validate all start_times are within competition date
+2. For each item with `start_time`: validate it falls on `competition.date`; if `competition.start_time` is set, validate athlete's `start_time ≥ competition.start_time`
 3. Update all registrations
 4. Optionally set status for all (default: `confirmed`)
 5. Notify all affected participants
@@ -342,6 +346,8 @@ rejected ──► (can re-apply) ──► pending
 **Errors:**
 - `400` - Duplicate bib numbers in batch
 - `400` - Invalid registration_id
+- `400` - Athlete start time must be on the competition date (`{first_name} {last_name}`)
+- `400` - Athlete start time cannot be earlier than competition start time (`{first_name} {last_name}`)
 
 ## 9.7 Cancel My Registration
 

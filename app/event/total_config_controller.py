@@ -47,7 +47,7 @@ def build_user_brief(user) -> TotalResultUserBrief:
         id=user.id,
         username_display=user.username_display,
         first_name=user.first_name,
-        last_name=f"{user.last_name[0]}." if user.last_name else None,
+        last_name=user.last_name,
     )
 
 

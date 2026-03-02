@@ -22,6 +22,7 @@ class Distance(Base):
     name = Column(String, nullable=False)
     distance_meters = Column(Integer, nullable=True)
     climb_meters = Column(Integer, nullable=True)
+    control_time = Column(Integer, nullable=True)  # seconds
     classes = Column(ARRAY(String), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 

@@ -109,6 +109,7 @@ async def create_event(
             sport_kind=event.sport_kind,
             start_format=comp_data.start_format if comp_data else StartFormat.SEPARATED_START,
             location=comp_data.location if comp_data else event.location,
+            start_time=comp_data.start_time if comp_data else None,
             status=CompetitionStatus.PLANNED,
         )
         db.add(comp)
@@ -505,7 +506,7 @@ async def get_team_members(
                 id=user.id,
                 username_display=user.username_display,
                 first_name=user.first_name,
-                last_name=f"{user.last_name[0]}." if user.last_name else None,
+                last_name=user.last_name,
                 logo=user.logo,
             ),
             role=m.role,

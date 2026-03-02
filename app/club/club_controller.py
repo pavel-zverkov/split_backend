@@ -314,7 +314,7 @@ async def get_club_members(
                 id=user.id,
                 username_display=user.username_display,
                 first_name=user.first_name,
-                last_name=f"{user.last_name[0]}." if user.last_name else None,
+                last_name=user.last_name,
                 logo=user.logo,
             ),
             role=membership.role,

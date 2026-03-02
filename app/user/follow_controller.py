@@ -157,7 +157,7 @@ async def get_followers(
             id=follower.id,
             username_display=follower.username_display,
             first_name=follower.first_name,
-            last_name=f"{follower.last_name[0]}." if follower.last_name else None,
+            last_name=follower.last_name,
             logo=follower.logo,
             is_following=is_following,
         ))
@@ -208,7 +208,7 @@ async def get_following(
             id=followed_user.id,
             username_display=followed_user.username_display,
             first_name=followed_user.first_name,
-            last_name=f"{followed_user.last_name[0]}." if followed_user.last_name else None,
+            last_name=followed_user.last_name,
             logo=followed_user.logo,
             status=show_status,
         ))
@@ -242,7 +242,7 @@ async def get_pending_follow_requests(
                 id=follower.id,
                 username_display=follower.username_display,
                 first_name=follower.first_name,
-                last_name=f"{follower.last_name[0]}." if follower.last_name else None,
+                last_name=follower.last_name,
                 logo=follower.logo,
             ),
             created_at=req.created_at,

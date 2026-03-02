@@ -76,7 +76,7 @@ def build_user_brief(db: Session, user: User) -> ResultUserBrief:
         id=user.id,
         username_display=user.username_display,
         first_name=user.first_name,
-        last_name=f"{user.last_name[0]}." if user.last_name else None,
+        last_name=user.last_name,
         club=club,
     )
 
@@ -128,6 +128,21 @@ async def create_result(
             detail='Result already exists for this user'
         )
 
+    # Validate start time based on start format
+    from ..enums.start_format import StartFormat
+    if competition.start_format == StartFormat.SEPARATED_START:
+        if not registration.start_time:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Cannot create result: athlete has no start time assigned'
+            )
+    elif competition.start_format == StartFormat.MASS_START:
+        if not competition.start_time:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Cannot create result: competition start time is not set'
+            )
+
     # Validate class against distances
     from ..competition import distance_crud
     distance = None
@@ -150,6 +165,12 @@ async def create_result(
                 detail=f'Invalid control points. Expected: {", ".join(expected_codes)}'
             )
 
+    # Auto-DSQ if time exceeds distance control time
+    result_status = data.status
+    if distance and distance.control_time and data.time_total and data.time_total > distance.control_time:
+        from ..enums.result_status import ResultStatus
+        result_status = ResultStatus.DSQ
+
     # Create result
     result = result_crud.create_result(
         db,
@@ -157,7 +178,7 @@ async def create_result(
         competition_id=competition_id,
         competition_class=data.competition_class,
         time_total=data.time_total,
-        status=data.status,
+        status=result_status,
         distance_id=distance.id if distance else None,
     )
 
@@ -434,14 +455,23 @@ async def update_result(
     old_class = result.class_
     needs_recalc = False
 
+    # Auto-DSQ if updated time exceeds distance control time
+    update_status = data.status
+    if data.time_total is not None:
+        effective_class = data.competition_class or result.class_
+        dist = distance_crud.get_distance_by_class(db, competition_id, effective_class) if effective_class else None
+        if dist and dist.control_time and data.time_total > dist.control_time:
+            from ..enums.result_status import ResultStatus
+            update_status = ResultStatus.DSQ
+
     # Update result
-    if data.time_total is not None or data.status is not None or data.competition_class is not None:
+    if data.time_total is not None or update_status is not None or data.competition_class is not None:
         needs_recalc = True
 
     updated = result_crud.update_result(
         db, result,
         time_total=data.time_total,
-        status=data.status,
+        status=update_status,
         competition_class=data.competition_class,
     )
 
@@ -649,6 +679,11 @@ async def import_results(
 
         # Resolve distance for this registration's class
         reg_distance = class_to_distance.get(registration.class_) if registration.class_ else None
+
+        # Auto-DSQ if time exceeds distance control time
+        if reg_distance and reg_distance.control_time and time_total and time_total > reg_distance.control_time:
+            from ..enums.result_status import ResultStatus
+            result_status = ResultStatus.DSQ
 
         # Create or update result
         existing = result_crud.get_result_by_user(db, registration.user_id, competition_id)

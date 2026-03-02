@@ -66,12 +66,16 @@ This separation allows:
 **Flow:**
 1. Verify user has CompetitionRegistration for this competition
 2. Verify no existing Result for this user/competition
-3. Validate class is in `competition.class_list`
-4. Validate splits control_points match `competition.control_points_list`
-5. Calculate `split_time` for each split (current - previous cumulative)
-6. Create Result record
-7. Create ResultSplit records
-8. Recalculate positions for the class
+3. Validate start time readiness based on `start_format`:
+   - `separated_start` — athlete's `registration.start_time` must be set
+   - `mass_start` — `competition.start_time` must be set
+   - `free` — no restriction
+4. Validate class is in `competition.class_list`
+5. Validate splits control_points match `competition.control_points_list`
+6. Calculate `split_time` for each split (current - previous cumulative)
+7. Create Result record
+8. Create ResultSplit records
+9. Recalculate positions for the class
 
 **Response:** `201 Created`
 ```json
@@ -99,6 +103,8 @@ This separation allows:
 **Errors:**
 - `400` - User not registered for this competition
 - `400` - Result already exists for this user
+- `400` - Cannot create result: athlete has no start time assigned (`separated_start`)
+- `400` - Cannot create result: competition start time is not set (`mass_start`)
 - `400` - Invalid class
 - `400` - Invalid control points (don't match competition)
 - `403` - Insufficient permissions

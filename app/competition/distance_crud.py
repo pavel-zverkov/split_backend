@@ -15,20 +15,21 @@ def create_distance(
         name=data.name,
         distance_meters=data.distance_meters,
         climb_meters=data.climb_meters,
+        control_time=data.control_time,
         classes=data.classes,
     )
     db.add(distance)
     db.flush()
 
-    if data.control_points:
-        for i, cp in enumerate(data.control_points, start=1):
-            control_point = ControlPoint(
-                distance_id=distance.id,
-                code=cp.code,
-                sequence=i,
-                type=cp.type,
-            )
-            db.add(control_point)
+    from ..enums.control_point_type import ControlPointType
+    middle = data.control_points or []
+    all_cps = (
+        [ControlPointInput(code='start', type=ControlPointType.START)]
+        + [cp for cp in middle if cp.type not in (ControlPointType.START, ControlPointType.FINISH)]
+        + [ControlPointInput(code='finish', type=ControlPointType.FINISH)]
+    )
+    for i, cp in enumerate(all_cps, start=1):
+        db.add(ControlPoint(distance_id=distance.id, code=cp.code, sequence=i, type=cp.type))
 
     db.commit()
     db.refresh(distance)

@@ -31,6 +31,7 @@ class Competition(Base):
     start_format = Column(Enum(StartFormat), nullable=False, default=StartFormat.SEPARATED_START)
     location = Column(String, nullable=True)
     status = Column(Enum(CompetitionStatus), nullable=False, default=CompetitionStatus.PLANNED)
+    start_time = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     # Relationships

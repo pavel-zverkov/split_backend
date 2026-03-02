@@ -189,16 +189,11 @@ async def get_public_profile(
     if current_user and current_user.id != user_id:
         follow_status = user_crud.get_follow_status(db, current_user.id, user_id)
 
-    # Truncate last name for privacy (unless follower)
-    last_name = user.last_name
-    if last_name and (not current_user or follow_status is None):
-        last_name = f"{last_name[0]}." if last_name else None
-
     return UserPublicProfile(
         id=user.id,
         username_display=user.username_display,
         first_name=user.first_name,
-        last_name=last_name,
+        last_name=user.last_name,
         logo=user.logo,
         bio=user.bio,
         account_type=user.account_type,
@@ -226,7 +221,7 @@ async def search_users(
                 id=u.id,
                 username_display=u.username_display,
                 first_name=u.first_name,
-                last_name=f"{u.last_name[0]}." if u.last_name else None,
+                last_name=u.last_name,
                 account_type=u.account_type,
             )
             for u in users

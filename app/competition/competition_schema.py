@@ -16,6 +16,7 @@ class CompetitionCreate(BaseModel):
     sport_kind: SportKind | None = None
     start_format: StartFormat = StartFormat.SEPARATED_START
     location: str | None = None
+    start_time: datetime | None = None
 
 
 class CompetitionUpdate(BaseModel):
@@ -25,6 +26,7 @@ class CompetitionUpdate(BaseModel):
     start_format: StartFormat | None = None
     location: str | None = None
     status: CompetitionStatus | None = None
+    start_time: datetime | None = None
 
 
 class CompetitionResponse(BaseModel):
@@ -37,6 +39,7 @@ class CompetitionResponse(BaseModel):
     start_format: StartFormat
     location: str | None = None
     status: CompetitionStatus
+    start_time: datetime | None = None
     registrations_count: int = 0
     distances_count: int = 0
     created_at: datetime
@@ -52,6 +55,7 @@ class CompetitionListItem(BaseModel):
     start_format: StartFormat
     location: str | None = None
     status: CompetitionStatus
+    start_time: datetime | None = None
     registrations_count: int = 0
     distances_count: int = 0
 
@@ -93,6 +97,7 @@ class CompetitionDetailResponse(BaseModel):
     start_format: StartFormat
     location: str | None = None
     status: CompetitionStatus
+    start_time: datetime | None = None
     registrations_count: int = 0
     distances_count: int = 0
     team_count: int = 0
