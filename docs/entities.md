@@ -93,12 +93,12 @@
 |---|-----------|------|----------|-------------|
 | 1 | `id` | int | PK | |
 | 2 | `result_id` | int | FK → Result | Parent result |
-| 3 | `control_point` | string | yes | Must match competition.control_points_list |
+| 3 | `control_point_id` | int | FK → ControlPoint, nullable | Validated against distance's control points |
 | 4 | `sequence` | int | yes | Order (1, 2, 3...) |
 | 5 | `cumulative_time` | int | yes | Seconds from start |
 | 6 | `split_time` | int | yes | Seconds for this leg |
 
-*Note: ResultSplit is validated against competition.control_points_list. Position and time_behind_best are calculated dynamically.*
+*Note: `control_point_id` is resolved from the CP code at import time. Position and time_behind_best are calculated dynamically.*
 
 ## Club
 | # | Attribute | Type | Required | Description |
@@ -135,13 +135,14 @@
 | 7 | `location` | string | no | Venue/area |
 | 8 | `sport_kind` | enum | yes | |
 | 9 | `privacy` | enum | yes | public/by_request |
-| 10 | `status` | enum | yes | draft/planned/in_progress/finished/cancelled |
-| 11 | `max_participants` | int | no | Capacity limit |
-| 12 | `recruitment_open` | bool | yes | Team self-registration enabled (default: false) |
-| 13 | `needed_roles` | array | no | Roles open for recruitment |
-| 14 | `organizer_id` | int | FK → User | Creator |
-| 15 | `created_at` | datetime | yes | |
-| 16 | `updated_at` | datetime | yes | |
+| 10 | `event_format` | enum | yes | single/multi_stage (default: multi_stage) |
+| 11 | `status` | enum | yes | draft/planned/in_progress/finished/cancelled |
+| 12 | `max_participants` | int | no | Capacity limit |
+| 13 | `recruitment_open` | bool | yes | Team self-registration enabled (default: false) |
+| 14 | `needed_roles` | array | no | Roles open for recruitment |
+| 15 | `organizer_id` | int | FK → User | Creator |
+| 16 | `created_at` | datetime | yes | |
+| 17 | `updated_at` | datetime | yes | |
 
 ## EventInvite
 | # | Attribute | Type | Required | Description |
@@ -178,14 +179,14 @@
 | 3 | `name` | string | yes | |
 | 4 | `description` | string | no | |
 | 5 | `date` | date | yes | |
-| 6 | `sport_kind` | enum | no | Inherits from event if null |
-| 7 | `start_format` | enum | yes | mass_start/separated_start/click |
-| 8 | `class_list` | array | no | Available classes |
-| 9 | `control_points_list` | array | no | Checkpoints: control codes (orienteering) or distance markers (running) |
-| 10 | `distance_meters` | int | no | Course length |
-| 11 | `location` | string | no | |
-| 12 | `status` | enum | yes | planned/registration_open/registration_closed/in_progress/finished/cancelled |
-| 13 | `created_at` | datetime | yes | |
+| 6 | `start_time` | datetime | no | Mass/separated start time |
+| 7 | `sport_kind` | enum | no | Inherits from event if null |
+| 8 | `start_format` | enum | yes | mass_start/separated_start/free (default: separated_start) |
+| 9 | `location` | string | no | |
+| 10 | `status` | enum | yes | planned/registration_open/registration_closed/in_progress/finished/cancelled |
+| 11 | `created_at` | datetime | yes | |
+
+*Note: Classes and control points are defined per-Distance (see Distance entity). One competition can have multiple distances.*
 
 ## CompetitionTeam
 | # | Attribute | Type | Required | Description |
@@ -198,6 +199,30 @@
 | 6 | `created_at` | datetime | yes | |
 
 *Note: If no record exists, user inherits from EventParticipation. If `excluded=true`, user doesn't work on this competition.*
+
+## Distance
+| # | Attribute | Type | Required | Description |
+|---|-----------|------|----------|-------------|
+| 1 | `id` | int | PK | |
+| 2 | `competition_id` | int | FK → Competition (CASCADE) | Parent competition |
+| 3 | `name` | string | yes | Distance name (e.g. "Long", "Middle", "M21") |
+| 4 | `distance_meters` | int | no | Course length in meters |
+| 5 | `climb_meters` | int | no | Total climb in meters |
+| 6 | `classes` | array | no | Age/gender classes assigned to this distance |
+| 7 | `created_at` | datetime | yes | |
+
+*Note: Classes are assigned at the Distance level, not at the Competition level. A distance with an empty classes array accepts all registrations without a class.*
+
+## ControlPoint
+| # | Attribute | Type | Required | Description |
+|---|-----------|------|----------|-------------|
+| 1 | `id` | int | PK | |
+| 2 | `distance_id` | int | FK → Distance (CASCADE) | Parent distance |
+| 3 | `code` | string | yes | Control code (e.g. "31", "KM1") |
+| 4 | `sequence` | int | yes | Order in the course (1, 2, 3…) |
+| 5 | `type` | enum | yes | start/control/finish |
+
+*Unique constraints: (distance_id, sequence), (distance_id, code)*
 
 ## CompetitionRegistration
 | # | Attribute | Type | Required | Description |
@@ -219,17 +244,47 @@
 | 1 | `id` | int | PK | |
 | 2 | `user_id` | int | FK → User | |
 | 3 | `competition_id` | int | FK → Competition | |
-| 4 | `workout_id` | int | FK → Workout | Linked workout (splits accessed via this) |
-| 5 | `class` | string | no | Competition class |
-| 6 | `position` | int | no | Ranking in class |
-| 7 | `position_overall` | int | no | Ranking overall |
-| 8 | `time_total` | int | no | Seconds |
-| 9 | `time_behind_leader` | int | no | Seconds |
-| 10 | `status` | enum | yes | ok/dsq/dns/dnf |
-| 11 | `created_at` | datetime | yes | |
-| 12 | `updated_at` | datetime | yes | |
+| 4 | `distance_id` | int | FK → Distance, nullable | Resolved from class at result creation |
+| 5 | `workout_id` | int | FK → Workout, nullable | Linked workout |
+| 6 | `class` | string | no | Competition class |
+| 7 | `position` | int | no | Ranking in class |
+| 8 | `position_overall` | int | no | Ranking overall |
+| 9 | `time_total` | int | no | Seconds |
+| 10 | `time_behind_leader` | int | no | Seconds |
+| 11 | `status` | enum | yes | ok/dsq/dns/dnf |
+| 12 | `created_at` | datetime | yes | |
+| 13 | `updated_at` | datetime | yes | |
 
-*Note: Competition splits are stored in ResultSplit. Training splits (via linked workout) are in WorkoutSplit.*
+*Note: `distance_id` is auto-resolved from the result's class via `distance_crud.get_distance_by_class()` at creation. Competition splits are stored in ResultSplit. Training splits are in WorkoutSplit.*
+
+## EventTotalConfig
+| # | Attribute | Type | Required | Description |
+|---|-----------|------|----------|-------------|
+| 1 | `id` | int | PK | |
+| 2 | `event_id` | int | FK → Event (CASCADE) | Parent multi-stage event |
+| 3 | `name` | string | yes | Config name (e.g. "Overall standings") |
+| 4 | `rules` | JSONB | yes | Calculation rules (see below) |
+| 5 | `auto_calculate` | bool | yes | Recalculate automatically on result changes (default: true) |
+| 6 | `created_at` | datetime | yes | |
+
+*Note: Only valid for `event_format=multi_stage` events. Rules JSONB contains: `source` (competition_ids, classes), `score` (type: time/position/formula, expression), `aggregation` (method: sum/min/max/avg, best_count, min_stages), `penalties` (dsq/dns handling, penalty_value), `sort_order`. Built-in presets: `sum_time`, `sum_positions`, `best_n_time`, `iof_points`.*
+
+## EventTotalResult
+| # | Attribute | Type | Required | Description |
+|---|-----------|------|----------|-------------|
+| 1 | `id` | int | PK | |
+| 2 | `config_id` | int | FK → EventTotalConfig (CASCADE) | |
+| 3 | `user_id` | int | FK → User | |
+| 4 | `class` | string | no | Competition class |
+| 5 | `total_value` | float | no | Aggregated score |
+| 6 | `position` | int | no | Ranking in class |
+| 7 | `position_overall` | int | no | Overall ranking |
+| 8 | `stages_counted` | int | no | Number of stages included |
+| 9 | `stages_total` | int | no | Total source stages |
+| 10 | `status` | enum | yes | ok/incomplete/dsq |
+| 11 | `calculated_at` | datetime | yes | Last calculation time |
+
+*Unique constraint: (config_id, user_id, class). Per-stage breakdown is read dynamically from the Result table — not denormalized.*
 
 ## Artifact
 | # | Attribute | Type | Required | Description |

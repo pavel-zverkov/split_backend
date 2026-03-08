@@ -42,6 +42,22 @@ def get_competition_or_404(db: Session, competition_id: int):
     return competition
 
 
+def check_bib_start_assignment_allowed(competition) -> None:
+    """For MASS_START and SEPARATED_START, bibs/start times can only be assigned
+    once registration is closed (status >= REGISTRATION_CLOSED)."""
+    from ..enums.start_format import StartFormat
+    from ..enums.competition_status import CompetitionStatus
+
+    restricted_formats = (StartFormat.MASS_START, StartFormat.SEPARATED_START)
+    early_statuses = (CompetitionStatus.PLANNED, CompetitionStatus.REGISTRATION_OPEN)
+
+    if competition.start_format in restricted_formats and competition.status in early_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Bibs and start times can only be assigned after registration is closed'
+        )
+
+
 # ===== 9.1 Register for Competition =====
 
 @registration_router.post('/{competition_id}/register', response_model=RegistrationResponse, status_code=status.HTTP_201_CREATED)
@@ -54,12 +70,27 @@ async def register_for_competition(
     """Register for a competition."""
     competition = get_competition_or_404(db, competition_id)
 
-    # Check if user has approved event participation
+    # Check if user has approved event participation; auto-join if event is public
     if not registration_crud.has_approved_event_participation(db, current_user.id, competition.event_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail='You must have approved event participation to register'
-        )
+        from ..event.event_crud import get_event, get_participation, create_participation
+        from ..enums.privacy import Privacy
+        from ..enums.event_role import EventRole
+        from ..enums.participation_status import ParticipationStatus
+
+        event = get_event(db, competition.event_id)
+        if event and event.privacy == Privacy.PUBLIC:
+            existing_participation = get_participation(db, current_user.id, competition.event_id)
+            if not existing_participation:
+                create_participation(
+                    db, current_user.id, competition.event_id,
+                    role=EventRole.PARTICIPANT,
+                    status=ParticipationStatus.APPROVED,
+                )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail='You must have approved event participation to register'
+            )
 
     # Check if registration is allowed
     if not registration_crud.can_register(db, competition):
@@ -147,6 +178,10 @@ async def add_registration(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f'Invalid class. Available: {", ".join(all_classes)}'
         )
+
+    # Check bib/start assignment allowed for this competition status
+    if data.bib_number or data.start_time:
+        check_bib_start_assignment_allowed(competition)
 
     # Validate bib number uniqueness
     if data.bib_number and not registration_crud.is_bib_number_unique(
@@ -383,6 +418,10 @@ async def update_registration(
             detail='Registration not found'
         )
 
+    # Check bib/start assignment allowed for this competition status
+    if data.bib_number or data.start_time:
+        check_bib_start_assignment_allowed(competition)
+
     # Validate bib number uniqueness
     if data.bib_number and not registration_crud.is_bib_number_unique(
         db, competition_id, data.bib_number, registration_id
@@ -475,6 +514,12 @@ async def batch_update_registrations(
             status_code=status.HTTP_403_FORBIDDEN,
             detail='Only organizer or secretary can update registrations'
         )
+
+    # Check bib/start assignment allowed for this competition status
+    has_bibs = any(r.bib_number for r in data.registrations)
+    has_times = any(r.start_time for r in data.registrations)
+    if has_bibs or has_times:
+        check_bib_start_assignment_allowed(competition)
 
     # Check for duplicate bib numbers in batch
     bib_numbers = [r.bib_number for r in data.registrations if r.bib_number]

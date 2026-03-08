@@ -112,6 +112,7 @@ async def get_feed(
     privacy: Privacy | None = Query(None, description='Filter by privacy'),
     start_date_from: date | None = Query(None, description='Start date from'),
     start_date_to: date | None = Query(None, description='Start date to'),
+    my_events: bool | None = Query(None, description='Only return events where current user is organizer or participant'),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     current_user: User | None = Depends(get_current_user_optional),
@@ -128,6 +129,7 @@ async def get_feed(
         start_date_from=start_date_from,
         start_date_to=start_date_to,
         current_user_id=current_user_id,
+        my_events=bool(my_events),
         limit=1000,
         offset=0,
     )

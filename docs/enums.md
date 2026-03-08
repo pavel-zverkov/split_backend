@@ -3,8 +3,11 @@
 ## sport_kind
 | Value | Description |
 |-------|-------------|
-| `run` | Running |
 | `orient` | Orienteering |
+| `run` | Running |
+| `bike` | Cycling |
+| `cx_ski` | Cross-country skiing |
+| `sport_tourism` | Sport tourism |
 
 ## start_format
 | Value | Description | Registration during in_progress |
@@ -167,3 +170,23 @@
 | `web` | Web browser |
 | `mobile` | Mobile app |
 | `embed` | Embedded widget |
+
+## event_format
+| Value | Description |
+|-------|-------------|
+| `single` | Single-competition event. Auto-creates one competition at event creation. Competition cannot be added/removed manually. Competition status syncs with event status. |
+| `multi_stage` | Multi-stage event with multiple competitions. Requires ≥2 competitions to transition from draft→planned. |
+
+## control_point_type
+| Value | Description |
+|-------|-------------|
+| `start` | Start point |
+| `control` | Intermediate control |
+| `finish` | Finish point |
+
+## total_result_status
+| Value | Description |
+|-------|-------------|
+| `ok` | All required stages completed |
+| `incomplete` | Fewer stages than required (min_stages not met) |
+| `dsq` | Disqualified (DSQ in one of the source stages)

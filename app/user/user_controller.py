@@ -24,6 +24,8 @@ from .user_schema import (
     GhostMatchClubInfo,
     CreatorBrief,
     AvatarResponse,
+    AvatarItem,
+    AvatarListResponse,
 )
 
 user_router = APIRouter(prefix='/api/users', tags=['users'])
@@ -109,7 +111,6 @@ async def upload_avatar(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Validate file type
     allowed_types = ['image/jpeg', 'image/png', 'image/webp']
     if file.content_type not in allowed_types:
         raise HTTPException(
@@ -117,7 +118,6 @@ async def upload_avatar(
             detail='File must be JPEG, PNG, or WebP image'
         )
 
-    # Validate file size (5MB)
     contents = await file.read()
     if len(contents) > 5 * 1024 * 1024:
         raise HTTPException(
@@ -125,13 +125,68 @@ async def upload_avatar(
             detail='File size must be less than 5MB'
         )
 
-    # Upload to MinIO
     from ..database.minio_service import upload_avatar
     logo_url = upload_avatar(current_user.id, contents, file.content_type)
     current_user.logo = logo_url
     db.commit()
 
     return AvatarResponse(logo=logo_url)
+
+
+@user_router.get('/me/avatars', response_model=AvatarListResponse)
+async def list_avatars(
+    current_user: User = Depends(get_current_user),
+):
+    from ..database.minio_service import list_avatars as minio_list_avatars
+    avatars = minio_list_avatars(current_user.id)
+    return AvatarListResponse(avatars=[
+        AvatarItem(
+            object_name=a['object_name'],
+            url=a['url'],
+            last_modified=a['last_modified'].isoformat(),
+            size=a['size'],
+        )
+        for a in avatars
+    ])
+
+
+@user_router.post('/me/avatars/{object_name:path}/activate', response_model=AvatarResponse)
+async def activate_avatar(
+    object_name: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Ensure the object belongs to this user
+    if not object_name.startswith(f'{current_user.id}/'):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Not your avatar')
+
+    from ..database.minio_service import activate_avatar as minio_activate
+    logo_url = minio_activate(object_name)
+    current_user.logo = logo_url
+    db.commit()
+
+    return AvatarResponse(logo=logo_url)
+
+
+@user_router.delete('/me/avatars/{object_name:path}', status_code=status.HTTP_204_NO_CONTENT)
+async def delete_avatar(
+    object_name: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not object_name.startswith(f'{current_user.id}/'):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Not your avatar')
+
+    from ..database.minio_service import delete_avatar_object, list_avatars as minio_list_avatars
+    delete_avatar_object(object_name)
+
+    # If deleted the active avatar, switch to the next most recent or clear
+    if current_user.logo and object_name in current_user.logo:
+        remaining = minio_list_avatars(current_user.id)
+        current_user.logo = remaining[0]['url'] if remaining else None
+        db.commit()
+
+    return None
 
 
 @user_router.delete('/me', status_code=status.HTTP_204_NO_CONTENT)

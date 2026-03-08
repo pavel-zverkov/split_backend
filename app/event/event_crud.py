@@ -193,6 +193,7 @@ def search_events(
     start_date_from: date | None = None,
     start_date_to: date | None = None,
     current_user_id: int | None = None,
+    my_events: bool = False,
     limit: int = 20,
     offset: int = 0
 ) -> tuple[list[Event], int]:
@@ -225,6 +226,15 @@ def search_events(
     # Filter by privacy
     if privacy:
         q = q.filter(Event.privacy == privacy)
+
+    # Filter to events where current user is organizer or participant
+    if my_events and current_user_id:
+        my_event_ids = db.query(EventParticipation.event_id).filter(
+            EventParticipation.user_id == current_user_id,
+            EventParticipation.role.in_([EventRole.ORGANIZER, EventRole.PARTICIPANT]),
+            EventParticipation.status == ParticipationStatus.APPROVED,
+        ).subquery()
+        q = q.filter(Event.id.in_(my_event_ids))
 
     # Filter by date range
     if start_date_from:

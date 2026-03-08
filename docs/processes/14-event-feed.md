@@ -52,6 +52,7 @@ Date-sorted feed:
 - `privacy` — filter by privacy
 - `start_date_from` — filter events starting from this date
 - `start_date_to` — filter events starting up to this date
+- `my_events` — if `true`, return only events where the authenticated user is an approved organizer or participant (requires auth)
 - `limit` — pagination limit (default: 20, max: 100)
 - `offset` — pagination offset (default: 0)
 

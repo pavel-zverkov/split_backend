@@ -52,6 +52,20 @@ rejected ──► (can re-apply) ──► pending
 | `in_progress` (other formats) | No | No |
 | `finished` / `cancelled` | No | No |
 
+### Bib and Start Time Assignment by Status
+
+For `mass_start` and `separated_start` competitions, bibs and start times can only be assigned **after registration is closed**:
+
+| Competition Status | `mass_start` / `separated_start` | `free` |
+|--------------------|------------------------------------|--------|
+| `planned` | ✗ Not allowed | ✓ Allowed |
+| `registration_open` | ✗ Not allowed | ✓ Allowed |
+| `registration_closed` | ✓ Allowed | ✓ Allowed |
+| `in_progress` | ✓ Allowed | ✓ Allowed |
+| `finished` | ✓ Allowed | ✓ Allowed |
+
+Applies to: 9.1b (add registration), 9.5 (update registration), 9.6 (batch assign).
+
 ---
 
 ## 9.1 Register for Competition
@@ -68,7 +82,10 @@ rejected ──► (can re-apply) ──► pending
 ```
 
 **Flow:**
-1. Verify user has approved event participation
+1. Check event participation:
+   - If user already has approved `participant` event participation → proceed
+   - If event is **public** → auto-create approved `participant` event participation and proceed
+   - Otherwise → `403`
 2. Verify competition allows registration:
    - `status=registration_open`, OR
    - `status=in_progress` AND `start_format=free`
@@ -95,8 +112,7 @@ rejected ──► (can re-apply) ──► pending
 - `400` - Already registered for this competition
 - `400` - Invalid class (not in class_list)
 - `400` - Registration closed (competition started with non-free format)
-- `403` - No approved event participation
-- `403` - Previous request rejected (can re-apply)
+- `403` - No approved event participation (non-public event)
 
 ## 9.1b Add Registration (Organizer)
 
@@ -121,9 +137,10 @@ rejected ──► (can re-apply) ──► pending
 2. Verify target user exists
 3. Verify user is not already registered
 4. Validate class is in `class_list`
-5. Validate bib_number is unique (if provided)
-6. If `start_time` provided — apply start time rules (see [Start Time Rules](#start-time-rules) below)
-7. Create registration with `status=registered`
+5. If `bib_number` or `start_time` provided — check [Bib/Start assignment allowed](#bib-and-start-time-assignment-by-status)
+6. Validate bib_number is unique (if provided)
+7. If `start_time` provided — apply start time rules (see [Start Time Rules](#start-time-rules) below)
+8. Create registration with `status=registered`
 
 **Response:** `201 Created`
 ```json
@@ -142,6 +159,7 @@ rejected ──► (can re-apply) ──► pending
 **Errors:**
 - `400` - User already registered for this competition
 - `400` - Invalid class (not in class_list)
+- `400` - Bibs and start times can only be assigned after registration is closed
 - `400` - Bib number already assigned
 - `400` - Start time validation error (see [Start Time Rules](#start-time-rules))
 - `403` - Caller is not organizer or secretary
@@ -291,15 +309,16 @@ rejected ──► (can re-apply) ──► pending
 **Updatable fields:** `bib_number`, `start_time`, `status`, `class`
 
 **Flow:**
-1. Validate bib_number is unique within competition (if provided)
-2. If `start_time` provided — apply start time rules (see [Start Time Rules](#start-time-rules) below)
-3. Validate class is in `class_list` (if provided)
-4. Update registration
-5. Notify participant if bib/start_time assigned
+1. If `bib_number` or `start_time` provided — check [Bib/Start assignment allowed](#bib-and-start-time-assignment-by-status)
+2. Validate bib_number is unique within competition (if provided)
+3. If `start_time` provided — apply start time rules (see [Start Time Rules](#start-time-rules) below)
+4. Validate class is in `class_list` (if provided)
+5. Update registration
 
 **Response:** `200 OK` (updated registration object)
 
 **Errors:**
+- `400` - Bibs and start times can only be assigned after registration is closed
 - `400` - Bib number already assigned
 - `400` - Start time validation error (see [Start Time Rules](#start-time-rules))
 - `400` - Invalid class
@@ -323,11 +342,11 @@ rejected ──► (can re-apply) ──► pending
 ```
 
 **Flow:**
-1. Validate all bib_numbers are unique within batch and competition
-2. For each item with `start_time` — apply start time rules (see [Start Time Rules](#start-time-rules) below)
-3. Update all registrations
-4. Optionally set status for all (default: `confirmed`)
-5. Notify all affected participants
+1. If any item has `bib_number` or `start_time` — check [Bib/Start assignment allowed](#bib-and-start-time-assignment-by-status)
+2. Validate all bib_numbers are unique within batch and competition
+3. For each item with `start_time` — apply start time rules (see [Start Time Rules](#start-time-rules) below)
+4. Update all registrations
+5. Optionally set status for all (default: `confirmed`)
 
 **Response:** `200 OK`
 ```json
@@ -342,6 +361,7 @@ rejected ──► (can re-apply) ──► pending
 ```
 
 **Errors:**
+- `400` - Bibs and start times can only be assigned after registration is closed
 - `400` - Duplicate bib numbers in batch
 - `400` - Invalid registration_id
 - `400` - Start time validation error (see [Start Time Rules](#start-time-rules))

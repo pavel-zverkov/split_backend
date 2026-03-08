@@ -1,3 +1,5 @@
+import json
+import uuid
 from io import BytesIO
 from typing import BinaryIO
 
@@ -18,6 +20,21 @@ BUCKET_ARTIFACTS = 'artifacts'
 ALL_BUCKETS = [BUCKET_AVATARS, BUCKET_CLUB_LOGOS, BUCKET_EVENT_LOGOS, BUCKET_ARTIFACTS]
 
 
+PUBLIC_BUCKETS = {BUCKET_AVATARS}
+
+
+def _public_read_policy(bucket: str) -> str:
+    return json.dumps({
+        'Version': '2012-10-17',
+        'Statement': [{
+            'Effect': 'Allow',
+            'Principal': {'AWS': ['*']},
+            'Action': ['s3:GetObject'],
+            'Resource': [f'arn:aws:s3:::{bucket}/*'],
+        }],
+    })
+
+
 def init_buckets() -> None:
     """Initialize all required buckets if they don't exist."""
     client = get_minio_client()
@@ -29,6 +46,10 @@ def init_buckets() -> None:
                 logger.info(f'Created bucket: {bucket}')
             else:
                 logger.debug(f'Bucket already exists: {bucket}')
+
+            if bucket in PUBLIC_BUCKETS:
+                client.set_bucket_policy(bucket, _public_read_policy(bucket))
+                logger.info(f'Set public-read policy on bucket: {bucket}')
         except S3Error as e:
             logger.error(f'Failed to create bucket {bucket}: {e}')
             raise
@@ -96,26 +117,46 @@ def _get_extension(content_type: str) -> str:
 # === Avatar Functions ===
 
 def upload_avatar(user_id: int, data: bytes, content_type: str) -> str:
-    """Upload user avatar and return URL."""
+    """Upload a new avatar with a unique name and return its URL."""
     ext = _get_extension(content_type)
-    object_name = f'{user_id}/avatar.{ext}'
+    object_name = f'{user_id}/{uuid.uuid4().hex}.{ext}'
     return _upload_file(BUCKET_AVATARS, object_name, data, content_type)
 
 
-def delete_avatar(user_id: int) -> bool:
-    """Delete user avatar. Tries common extensions."""
+def list_avatars(user_id: int) -> list[dict]:
+    """List all avatars for a user, sorted by last_modified descending."""
     client = get_minio_client()
+    objects = client.list_objects(BUCKET_AVATARS, prefix=f'{user_id}/', recursive=True)
+    result = []
+    for obj in objects:
+        result.append({
+            'object_name': obj.object_name,
+            'url': f'{_get_base_url()}/{BUCKET_AVATARS}/{obj.object_name}',
+            'last_modified': obj.last_modified,
+            'size': obj.size,
+        })
+    result.sort(key=lambda x: x['last_modified'], reverse=True)
+    return result
 
-    for ext in ['jpg', 'png', 'webp', 'gif']:
-        object_name = f'{user_id}/avatar.{ext}'
-        try:
-            client.stat_object(BUCKET_AVATARS, object_name)
-            return _delete_file(BUCKET_AVATARS, object_name)
-        except S3Error:
-            continue
 
-    logger.warning(f'No avatar found for user {user_id}')
-    return False
+def activate_avatar(object_name: str) -> str:
+    """Touch an avatar object (server-side copy to itself) to make it the most recent. Returns URL."""
+    from minio.commonconfig import CopySource
+    client = get_minio_client()
+    client.copy_object(BUCKET_AVATARS, object_name, CopySource(BUCKET_AVATARS, object_name))
+    return f'{_get_base_url()}/{BUCKET_AVATARS}/{object_name}'
+
+
+def delete_avatar_object(object_name: str) -> bool:
+    """Delete a specific avatar object by name."""
+    return _delete_file(BUCKET_AVATARS, object_name)
+
+
+def delete_avatar(user_id: int) -> None:
+    """Delete all avatars for a user (used on account deletion)."""
+    avatars = list_avatars(user_id)
+    for avatar in avatars:
+        _delete_file(BUCKET_AVATARS, avatar['object_name'])
 
 
 # === Club Logo Functions ===

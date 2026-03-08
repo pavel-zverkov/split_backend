@@ -11,6 +11,7 @@
 | 11.7 | `/api/competitions/{competition_id}/results/recalculate` | POST | Recalculate positions |
 | 11.8 | `/api/competitions/{competition_id}/results/import` | POST | Batch import results |
 | 11.9 | `/api/results/{result_id}/link-workout` | PATCH | Link workout to result |
+| 11.10 | `/api/competitions/{competition_id}/splits` | GET | Get splits for all athletes |
 
 ## Result Concept
 
@@ -451,6 +452,106 @@ The CSV importer accepts times in multiple formats for human convenience — all
 - `403` - Not authorized (not owner and not organizer)
 
 **Note:** Linking workout does NOT copy WorkoutSplits to ResultSplits. They remain separate for independent analysis.
+
+## 11.10 Get All Athletes' Splits
+
+**Endpoint:** `GET /api/competitions/{competition_id}/splits`
+
+**Authorization:** Public
+
+**Query params:**
+- `class` — filter by class (e.g., `M21`)
+- `distance_id` — filter by distance
+
+**Description:** Returns splits for all athletes in one request. Each athlete entry contains both a `splits` list (athlete-oriented) and a `splits_map` dict (control-point-oriented) for flexible frontend rendering.
+
+**Response:** `200 OK`
+```json
+{
+  "competition": {
+    "id": 1,
+    "name": "Day 1 - Long Distance",
+    "date": "2024-06-15"
+  },
+  "control_points": ["start", "31", "45", "78", "finish"],
+  "athletes": [
+    {
+      "result_id": 1,
+      "user": {
+        "id": 5,
+        "username_display": "ivan_petrov",
+        "first_name": "Ivan",
+        "last_name": "Petrov",
+        "club": {"id": 1, "name": "Moscow Orienteers"}
+      },
+      "bib_number": "101",
+      "class": "M21",
+      "distance_id": 2,
+      "time_total": 3725000,
+      "status": "ok",
+      "position": 1,
+      "splits": [
+        {
+          "control_point": "31",
+          "sequence": 1,
+          "split_time": 240000,
+          "cumulative_time": 240000,
+          "position": 2,
+          "time_behind_best": 15000,
+          "cumulative_position": 2,
+          "cumulative_time_behind_best": 15000,
+          "position_in_distance": 3,
+          "time_behind_best_in_distance": 22000,
+          "cumulative_position_in_distance": 3,
+          "cumulative_time_behind_best_in_distance": 22000
+        }
+      ],
+      "splits_map": {
+        "31": {
+          "control_point": "31",
+          "sequence": 1,
+          "split_time": 240000,
+          "cumulative_time": 240000,
+          "position": 2,
+          "time_behind_best": 15000,
+          "cumulative_position": 2,
+          "cumulative_time_behind_best": 15000,
+          "position_in_distance": 3,
+          "time_behind_best_in_distance": 22000,
+          "cumulative_position_in_distance": 3,
+          "cumulative_time_behind_best_in_distance": 22000
+        }
+      }
+    }
+  ],
+  "total": 42
+}
+```
+
+**Split position fields:**
+
+| Field | Time basis | Scope | Description |
+|-------|-----------|-------|-------------|
+| `position` | `split_time` | Class | Leg rank among athletes in the same class |
+| `time_behind_best` | `split_time` | Class | ms behind the fastest leg in class |
+| `cumulative_position` | `cumulative_time` | Class | Rank at this control point in class |
+| `cumulative_time_behind_best` | `cumulative_time` | Class | ms behind the leader at this control point in class |
+| `position_in_distance` | `split_time` | Distance | Leg rank among all athletes on the same distance |
+| `time_behind_best_in_distance` | `split_time` | Distance | ms behind the fastest leg in distance |
+| `cumulative_position_in_distance` | `cumulative_time` | Distance | Rank at this control point across the distance |
+| `cumulative_time_behind_best_in_distance` | `cumulative_time` | Distance | ms behind the distance leader at this control point |
+
+All position fields are `null` for non-OK results or when the athlete has no distance assigned. Athletes are ordered by `position` (class rank, nulls last).
+
+**Implementation notes:**
+- Loads all splits in **2 queries** (results + splits bulk `IN`) — no N+1
+- Positions computed in-memory grouped by `(class, control_point)`
+- `control_points` is the **ordered union** of all CP codes across all athletes — use this as table column headers
+- `splits_map` keyed by control point code — direct O(1) cell lookup for table rendering
+
+**Typical frontend use cases:**
+- Split analysis table (rows = athletes, columns = control points) — use `control_points` + `splits_map`
+- Athlete detail with split progression — use `splits` list
 
 ---
 

@@ -40,6 +40,49 @@ class SplitDetailResponse(BaseModel):
     model_config = {'from_attributes': True}
 
 
+# ===== Bulk Splits =====
+
+class BulkSplitEntry(BaseModel):
+    control_point: str
+    sequence: int
+    split_time: int
+    cumulative_time: int
+    # class-scoped
+    position: int | None = None
+    time_behind_best: int | None = None
+    cumulative_position: int | None = None
+    cumulative_time_behind_best: int | None = None
+    # distance-scoped
+    position_in_distance: int | None = None
+    time_behind_best_in_distance: int | None = None
+    cumulative_position_in_distance: int | None = None
+    cumulative_time_behind_best_in_distance: int | None = None
+
+    model_config = {'from_attributes': True}
+
+
+class AthleteBulkSplits(BaseModel):
+    result_id: int
+    user: 'ResultUserBrief'
+    bib_number: str | None = None
+    competition_class: str | None = Field(None, alias='class')
+    distance_id: int | None = None
+    time_total: int | None = None
+    status: ResultStatus
+    position: int | None = None
+    splits: list[BulkSplitEntry]
+    splits_map: dict[str, BulkSplitEntry]
+
+    model_config = {'populate_by_name': True}
+
+
+class BulkSplitsResponse(BaseModel):
+    competition: 'CompetitionBrief'
+    control_points: list[str]
+    athletes: list[AthleteBulkSplits]
+    total: int
+
+
 # ===== User/Club Brief =====
 
 class ClubBrief(BaseModel):

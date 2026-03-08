@@ -129,6 +129,97 @@ def replace_splits(
     return create_splits(db, result_id, splits_data, distance=distance)
 
 
+def get_bulk_splits(
+    db: Session,
+    competition_id: int,
+    competition_class: str | None = None,
+    distance_id: int | None = None,
+) -> tuple[list[Result], dict[int, list[ResultSplit]], dict[int, dict[str, dict]], list[str]]:
+    """Get all results with splits for a competition in one pass.
+
+    Returns:
+        results: ordered list of Result objects
+        splits_by_result: {result_id: [ResultSplit, ...]}
+        positions_map: {result_id: {control_point: {position, time_behind_best, cumulative_position, cumulative_time_behind_best}}}
+        control_points_ordered: ordered list of CP codes (union across all athletes)
+    """
+    from collections import defaultdict
+
+    q = db.query(Result).filter(Result.competition_id == competition_id)
+    if competition_class:
+        q = q.filter(Result.class_ == competition_class)
+    if distance_id:
+        q = q.filter(Result.distance_id == distance_id)
+    results = q.order_by(Result.position.asc().nullslast()).all()
+
+    if not results:
+        return [], {}, {}, []
+
+    result_ids = [r.id for r in results]
+    result_map = {r.id: r for r in results}
+
+    all_splits = db.query(ResultSplit).filter(
+        ResultSplit.result_id.in_(result_ids)
+    ).order_by(ResultSplit.result_id, ResultSplit.sequence).all()
+
+    splits_by_result: dict[int, list] = defaultdict(list)
+    for split in all_splits:
+        splits_by_result[split.result_id].append(split)
+
+    # Group by (class, control_point) and (distance_id, control_point) for position calculation
+    cp_class_data: dict[tuple, list] = defaultdict(list)
+    cp_dist_data: dict[tuple, list] = defaultdict(list)
+    for split in all_splits:
+        result = result_map[split.result_id]
+        if result.status == ResultStatus.OK:
+            entry = (split.result_id, split.split_time, split.cumulative_time)
+            cp_class_data[(result.class_, split.control_point)].append(entry)
+            if result.distance_id is not None:
+                cp_dist_data[(result.distance_id, split.control_point)].append(entry)
+
+    positions_map: dict[int, dict[str, dict]] = defaultdict(dict)
+
+    for (cls, cp), entries in cp_class_data.items():
+        by_split = sorted(entries, key=lambda x: x[1])
+        best_split = by_split[0][1]
+        for i, (rid, st, _) in enumerate(by_split, 1):
+            positions_map[rid].setdefault(cp, {})
+            positions_map[rid][cp]['position'] = i
+            positions_map[rid][cp]['time_behind_best'] = st - best_split
+
+        by_cum = sorted(entries, key=lambda x: x[2])
+        best_cum = by_cum[0][2]
+        for i, (rid, _, ct) in enumerate(by_cum, 1):
+            positions_map[rid].setdefault(cp, {})
+            positions_map[rid][cp]['cumulative_position'] = i
+            positions_map[rid][cp]['cumulative_time_behind_best'] = ct - best_cum
+
+    for (dist_id, cp), entries in cp_dist_data.items():
+        by_split = sorted(entries, key=lambda x: x[1])
+        best_split = by_split[0][1]
+        for i, (rid, st, _) in enumerate(by_split, 1):
+            positions_map[rid].setdefault(cp, {})
+            positions_map[rid][cp]['position_in_distance'] = i
+            positions_map[rid][cp]['time_behind_best_in_distance'] = st - best_split
+
+        by_cum = sorted(entries, key=lambda x: x[2])
+        best_cum = by_cum[0][2]
+        for i, (rid, _, ct) in enumerate(by_cum, 1):
+            positions_map[rid].setdefault(cp, {})
+            positions_map[rid][cp]['cumulative_position_in_distance'] = i
+            positions_map[rid][cp]['cumulative_time_behind_best_in_distance'] = ct - best_cum
+
+    # Build ordered CP list (union, preserving sequence order)
+    seen_cps: set[str] = set()
+    cps_ordered: list[str] = []
+    for split in sorted(all_splits, key=lambda s: s.sequence):
+        if split.control_point not in seen_cps:
+            cps_ordered.append(split.control_point)
+            seen_cps.add(split.control_point)
+
+    return results, dict(splits_by_result), dict(positions_map), cps_ordered
+
+
 # ===== Queries =====
 
 def get_results(

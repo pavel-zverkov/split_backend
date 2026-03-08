@@ -196,3 +196,14 @@ class GhostMatchResponse(BaseModel):
 
 class AvatarResponse(BaseModel):
     logo: str
+
+
+class AvatarItem(BaseModel):
+    object_name: str
+    url: str
+    last_modified: str
+    size: int
+
+
+class AvatarListResponse(BaseModel):
+    avatars: list[AvatarItem]

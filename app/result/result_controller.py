@@ -33,6 +33,9 @@ from .result_schema import (
     LinkWorkoutRequest,
     LinkWorkoutResponse,
     ClubBrief,
+    BulkSplitEntry,
+    AthleteBulkSplits,
+    BulkSplitsResponse,
 )
 
 result_router = APIRouter(tags=['results'])
@@ -179,6 +182,73 @@ def build_splits_detail_response(
             cumulative_time_behind_best_in_distance=dist_cum_pos[1],
         ))
     return response
+
+
+# ===== Bulk Splits =====
+
+@result_router.get('/api/competitions/{competition_id}/splits', response_model=BulkSplitsResponse)
+async def get_competition_splits(
+    competition_id: int,
+    competition_class: str | None = Query(None, alias='class'),
+    distance_id: int | None = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Get splits for all athletes in a competition (both list and map formats)."""
+    competition = get_competition_or_404(db, competition_id)
+
+    results, splits_by_result, positions_map, cps_ordered = result_crud.get_bulk_splits(
+        db, competition_id, competition_class, distance_id
+    )
+
+    athletes = []
+    for result in results:
+        result_splits = splits_by_result.get(result.id, [])
+        result_positions = positions_map.get(result.id, {})
+
+        split_entries = []
+        split_map = {}
+        for split in result_splits:
+            cp_pos = result_positions.get(split.control_point, {})
+            entry = BulkSplitEntry(
+                control_point=split.control_point,
+                sequence=split.sequence,
+                split_time=split.split_time,
+                cumulative_time=split.cumulative_time,
+                position=cp_pos.get('position'),
+                time_behind_best=cp_pos.get('time_behind_best'),
+                cumulative_position=cp_pos.get('cumulative_position'),
+                cumulative_time_behind_best=cp_pos.get('cumulative_time_behind_best'),
+                position_in_distance=cp_pos.get('position_in_distance'),
+                time_behind_best_in_distance=cp_pos.get('time_behind_best_in_distance'),
+                cumulative_position_in_distance=cp_pos.get('cumulative_position_in_distance'),
+                cumulative_time_behind_best_in_distance=cp_pos.get('cumulative_time_behind_best_in_distance'),
+            )
+            split_entries.append(entry)
+            split_map[split.control_point] = entry
+
+        athletes.append(AthleteBulkSplits(
+            result_id=result.id,
+            user=build_user_brief(db, result.user),
+            bib_number=get_bib_number(db, result.user_id, competition_id),
+            competition_class=result.class_,
+            distance_id=result.distance_id,
+            time_total=result.time_total,
+            status=result.status,
+            position=result.position,
+            splits=split_entries,
+            splits_map=split_map,
+        ))
+
+    return BulkSplitsResponse(
+        competition=CompetitionBrief(
+            id=competition.id,
+            name=competition.name,
+            date=str(competition.date),
+        ),
+        control_points=cps_ordered,
+        athletes=athletes,
+        total=len(athletes),
+    )
 
 
 # ===== 11.1 Create Result =====
