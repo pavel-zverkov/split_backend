@@ -1,5 +1,6 @@
 import json
 import uuid
+from datetime import datetime, timezone
 from io import BytesIO
 from typing import BinaryIO
 
@@ -140,10 +141,16 @@ def list_avatars(user_id: int) -> list[dict]:
 
 
 def activate_avatar(object_name: str) -> str:
-    """Touch an avatar object (server-side copy to itself) to make it the most recent. Returns URL."""
-    from minio.commonconfig import CopySource
+    """Touch an avatar object (server-side copy to itself with new metadata) to make it the most recent. Returns URL."""
+    from minio.commonconfig import CopySource, REPLACE
     client = get_minio_client()
-    client.copy_object(BUCKET_AVATARS, object_name, CopySource(BUCKET_AVATARS, object_name))
+    client.copy_object(
+        BUCKET_AVATARS,
+        object_name,
+        CopySource(BUCKET_AVATARS, object_name),
+        metadata={'x-amz-meta-activated-at': datetime.now(timezone.utc).isoformat()},
+        metadata_directive=REPLACE,
+    )
     return f'{_get_base_url()}/{BUCKET_AVATARS}/{object_name}'
 
 
