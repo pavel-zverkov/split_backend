@@ -15,10 +15,8 @@ class CompetitionCreate(BaseModel):
     date: date_type
     sport_kind: SportKind | None = None
     start_format: StartFormat = StartFormat.SEPARATED_START
-    class_list: list[str] | None = None
-    control_points_list: list[str] | None = None
-    distance_meters: int | None = None
     location: str | None = None
+    start_time: datetime | None = None
 
 
 class CompetitionUpdate(BaseModel):
@@ -26,11 +24,9 @@ class CompetitionUpdate(BaseModel):
     description: str | None = None
     date: date_type | None = None
     start_format: StartFormat | None = None
-    class_list: list[str] | None = None
-    control_points_list: list[str] | None = None
-    distance_meters: int | None = None
     location: str | None = None
     status: CompetitionStatus | None = None
+    start_time: datetime | None = None
 
 
 class CompetitionResponse(BaseModel):
@@ -41,12 +37,11 @@ class CompetitionResponse(BaseModel):
     date: date_type
     sport_kind: SportKind | None = None
     start_format: StartFormat
-    class_list: list[str] | None = None
-    control_points_list: list[str] | None = None
-    distance_meters: int | None = None
     location: str | None = None
     status: CompetitionStatus
+    start_time: datetime | None = None
     registrations_count: int = 0
+    distances_count: int = 0
     created_at: datetime
 
     model_config = {'from_attributes': True}
@@ -58,11 +53,11 @@ class CompetitionListItem(BaseModel):
     date: date_type
     sport_kind: SportKind | None = None
     start_format: StartFormat
-    distance_meters: int | None = None
     location: str | None = None
     status: CompetitionStatus
+    start_time: datetime | None = None
     registrations_count: int = 0
-    classes_count: int = 0
+    distances_count: int = 0
 
     model_config = {'from_attributes': True}
 
@@ -100,12 +95,11 @@ class CompetitionDetailResponse(BaseModel):
     date: date_type
     sport_kind: SportKind | None = None
     start_format: StartFormat
-    class_list: list[str] | None = None
-    control_points_list: list[str] | None = None
-    distance_meters: int | None = None
     location: str | None = None
     status: CompetitionStatus
+    start_time: datetime | None = None
     registrations_count: int = 0
+    distances_count: int = 0
     team_count: int = 0
     my_registration: MyRegistrationBrief | None = None
     created_at: datetime

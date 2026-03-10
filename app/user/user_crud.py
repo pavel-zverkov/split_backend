@@ -248,7 +248,7 @@ def user_owns_clubs(db: Session, user_id: int) -> bool:
 def user_organizes_active_events(db: Session, user_id: int) -> bool:
     from ..event.event_model import Event
     from ..enums.event_status import EventStatus
-    active_statuses = [EventStatus.DRAFT, EventStatus.PLANNED, EventStatus.REGISTRATION_OPEN, EventStatus.IN_PROGRESS]
+    active_statuses = [EventStatus.DRAFT, EventStatus.PLANNED, EventStatus.IN_PROGRESS]
     return db.query(Event).filter(
         Event.organizer_id == user_id,
         Event.status.in_(active_statuses)
@@ -282,3 +282,98 @@ def can_create_ghost_users(db: Session, user_id: int) -> bool:
     ).count() > 0
 
     return is_organizer
+
+
+def get_user_competitions_count(db: Session, user_id: int) -> int:
+    """Count competitions user has registered for."""
+    from ..competition.competition_registration_model import CompetitionRegistration
+    return db.query(CompetitionRegistration).filter(
+        CompetitionRegistration.user_id == user_id
+    ).count()
+
+
+def get_user_results_summary(db: Session, user_id: int) -> str | None:
+    """Get a brief summary of user's best results."""
+    from ..result.result_model import Result
+    from ..enums.result_status import ResultStatus
+
+    results = db.query(Result).filter(
+        Result.user_id == user_id,
+        Result.status == ResultStatus.OK,
+        Result.position.isnot(None)
+    ).order_by(Result.position.asc()).limit(3).all()
+
+    if not results:
+        return None
+
+    best = results[0]
+    if best.position == 1:
+        return f"Best: 1st place ({len(results)} results)"
+    elif best.position == 2:
+        return f"Best: 2nd place ({len(results)} results)"
+    elif best.position == 3:
+        return f"Best: 3rd place ({len(results)} results)"
+    else:
+        return f"Best: {best.position}th place ({len(results)} results)"
+
+
+def get_ghost_events(db: Session, ghost_user_id: int) -> list[dict]:
+    """Get events where the ghost user has competition registrations, grouped by event."""
+    from ..competition.competition_registration_model import CompetitionRegistration
+    from ..competition.competition_model import Competition
+    from ..event.event_model import Event
+    from ..result.result_model import Result
+
+    registrations = db.query(CompetitionRegistration).filter(
+        CompetitionRegistration.user_id == ghost_user_id
+    ).all()
+
+    events_map: dict[int, dict] = {}
+    for reg in registrations:
+        comp = db.query(Competition).filter(Competition.id == reg.competition_id).first()
+        if not comp:
+            continue
+        event = db.query(Event).filter(Event.id == comp.event_id).first()
+        if not event:
+            continue
+
+        has_result = db.query(Result).filter(
+            Result.user_id == ghost_user_id,
+            Result.competition_id == comp.id
+        ).count() > 0
+
+        if event.id not in events_map:
+            events_map[event.id] = {
+                'event_id': event.id,
+                'event_name': event.name,
+                'competitions': [],
+            }
+
+        events_map[event.id]['competitions'].append({
+            'competition_id': comp.id,
+            'competition_name': comp.name,
+            'has_result': has_result,
+        })
+
+    return list(events_map.values())
+
+
+def get_ghost_clubs(db: Session, ghost_user_id: int) -> list[dict]:
+    """Get clubs where the ghost user is a member."""
+    from ..club.club_membership_model import ClubMembership
+    from ..club.club_model import Club
+
+    memberships = db.query(ClubMembership).filter(
+        ClubMembership.user_id == ghost_user_id
+    ).all()
+
+    clubs = []
+    for m in memberships:
+        club = db.query(Club).filter(Club.id == m.club_id).first()
+        if club:
+            clubs.append({
+                'club_id': club.id,
+                'club_name': club.name,
+            })
+
+    return clubs

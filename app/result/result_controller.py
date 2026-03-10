@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 from datetime import timedelta
 from typing import Annotated
 
@@ -11,6 +12,7 @@ from ..auth.auth_service import get_current_user, get_current_user_optional
 from ..user.user_model import User
 from ..competition.competition_crud import get_competition
 from ..competition.registration_crud import get_registration_by_user
+from ..club import club_crud
 from . import result_crud
 from .result_schema import (
     ResultCreate,
@@ -22,6 +24,7 @@ from .result_schema import (
     ResultUserBrief,
     CompetitionBrief,
     ClassSummary,
+    DistanceSummary,
     SplitResponse,
     SplitDetailResponse,
     RecalculateResponse,
@@ -30,9 +33,54 @@ from .result_schema import (
     LinkWorkoutRequest,
     LinkWorkoutResponse,
     ClubBrief,
+    BulkSplitEntry,
+    AthleteBulkSplits,
+    BulkSplitsResponse,
 )
 
 result_router = APIRouter(tags=['results'])
+
+
+def parse_time_to_ms(value: str) -> int:
+    """Parse a time string to milliseconds.
+
+    Accepts:
+      - Raw integer (ms):   "2415300"
+      - MM:SS:              "40:15"
+      - MM:SS.s:            "40:15.3"  (tenths/hundredths/ms)
+      - HH:MM:SS:           "1:40:15"
+      - HH:MM:SS.s:         "1:40:15.35"
+    """
+    value = value.strip()
+
+    # Raw integer — treat as milliseconds
+    try:
+        return int(value)
+    except ValueError:
+        pass
+
+    # [H:]MM:SS[.frac]
+    m = re.fullmatch(r'(?:(\d+):)?(\d{1,2}):(\d{2})(?:\.(\d+))?', value)
+    if not m:
+        raise ValueError(f'Cannot parse time: {value!r}')
+
+    hours = int(m.group(1) or 0)
+    minutes = int(m.group(2))
+    seconds = int(m.group(3))
+    frac = m.group(4) or '0'
+
+    # Normalise fraction to milliseconds (pad or truncate to 3 digits)
+    frac_ms = int(frac[:3].ljust(3, '0'))
+
+    return (hours * 3600 + minutes * 60 + seconds) * 1000 + frac_ms
+
+
+def trigger_total_recalculation(db: Session, competition_id: int) -> None:
+    """Find auto_calculate total configs and recalculate them."""
+    from ..event.total_calculator import get_total_configs_for_competition, recalculate_total
+    configs = get_total_configs_for_competition(db, competition_id)
+    for config in configs:
+        recalculate_total(db, config)
 
 
 # ===== Helper Functions =====
@@ -57,17 +105,24 @@ def get_result_or_404(db: Session, result_id: int):
     return result
 
 
-def build_user_brief(user: User) -> ResultUserBrief:
+def build_user_brief(db: Session, user: User) -> ResultUserBrief:
     # Get user's club (if any)
     club = None
-    # TODO: Add club relationship when user-club is implemented
+    user_club = club_crud.get_user_active_club(db, user.id)
+    if user_club:
+        club = ClubBrief(id=user_club.id, name=user_club.name)
     return ResultUserBrief(
         id=user.id,
         username_display=user.username_display,
         first_name=user.first_name,
-        last_name=f"{user.last_name[0]}." if user.last_name else None,
+        last_name=user.last_name,
         club=club,
     )
+
+
+def get_bib_number(db: Session, user_id: int, competition_id: int) -> str | None:
+    reg = get_registration_by_user(db, user_id, competition_id)
+    return reg.bib_number if reg else None
 
 
 def build_splits_response(splits) -> list[SplitResponse]:
@@ -80,6 +135,120 @@ def build_splits_response(splits) -> list[SplitResponse]:
         )
         for s in sorted(splits, key=lambda x: x.sequence)
     ]
+
+
+def build_splits_detail_response(
+    db: Session,
+    result,
+    competition_id: int,
+) -> list[SplitDetailResponse]:
+    """Build SplitDetailResponse list with class and distance positions for each split."""
+    response = []
+    for split in sorted(result.splits, key=lambda x: x.sequence):
+        cp = split.control_point
+
+        class_split_pos = (None, None)
+        class_cum_pos = (None, None)
+        if result.class_:
+            class_split_pos = result_crud.get_split_positions(
+                db, competition_id, result.class_, cp
+            ).get(result.id, (None, None))
+            class_cum_pos = result_crud.get_cumulative_positions(
+                db, competition_id, result.class_, cp
+            ).get(result.id, (None, None))
+
+        dist_split_pos = (None, None)
+        dist_cum_pos = (None, None)
+        if result.distance_id:
+            dist_split_pos = result_crud.get_split_positions_by_distance(
+                db, competition_id, result.distance_id, cp
+            ).get(result.id, (None, None))
+            dist_cum_pos = result_crud.get_cumulative_positions_by_distance(
+                db, competition_id, result.distance_id, cp
+            ).get(result.id, (None, None))
+
+        response.append(SplitDetailResponse(
+            control_point=cp,
+            sequence=split.sequence,
+            cumulative_time=split.cumulative_time,
+            split_time=split.split_time,
+            position=class_split_pos[0],
+            time_behind_best=class_split_pos[1],
+            position_in_distance=dist_split_pos[0],
+            time_behind_best_in_distance=dist_split_pos[1],
+            cumulative_position=class_cum_pos[0],
+            cumulative_time_behind_best=class_cum_pos[1],
+            cumulative_position_in_distance=dist_cum_pos[0],
+            cumulative_time_behind_best_in_distance=dist_cum_pos[1],
+        ))
+    return response
+
+
+# ===== Bulk Splits =====
+
+@result_router.get('/api/competitions/{competition_id}/splits', response_model=BulkSplitsResponse)
+async def get_competition_splits(
+    competition_id: int,
+    competition_class: str | None = Query(None, alias='class'),
+    distance_id: int | None = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Get splits for all athletes in a competition (both list and map formats)."""
+    competition = get_competition_or_404(db, competition_id)
+
+    results, splits_by_result, positions_map, cps_ordered = result_crud.get_bulk_splits(
+        db, competition_id, competition_class, distance_id
+    )
+
+    athletes = []
+    for result in results:
+        result_splits = splits_by_result.get(result.id, [])
+        result_positions = positions_map.get(result.id, {})
+
+        split_entries = []
+        split_map = {}
+        for split in result_splits:
+            cp_pos = result_positions.get(split.control_point, {})
+            entry = BulkSplitEntry(
+                control_point=split.control_point,
+                sequence=split.sequence,
+                split_time=split.split_time,
+                cumulative_time=split.cumulative_time,
+                position=cp_pos.get('position'),
+                time_behind_best=cp_pos.get('time_behind_best'),
+                cumulative_position=cp_pos.get('cumulative_position'),
+                cumulative_time_behind_best=cp_pos.get('cumulative_time_behind_best'),
+                position_in_distance=cp_pos.get('position_in_distance'),
+                time_behind_best_in_distance=cp_pos.get('time_behind_best_in_distance'),
+                cumulative_position_in_distance=cp_pos.get('cumulative_position_in_distance'),
+                cumulative_time_behind_best_in_distance=cp_pos.get('cumulative_time_behind_best_in_distance'),
+            )
+            split_entries.append(entry)
+            split_map[split.control_point] = entry
+
+        athletes.append(AthleteBulkSplits(
+            result_id=result.id,
+            user=build_user_brief(db, result.user),
+            bib_number=get_bib_number(db, result.user_id, competition_id),
+            competition_class=result.class_,
+            distance_id=result.distance_id,
+            time_total=result.time_total,
+            status=result.status,
+            position=result.position,
+            splits=split_entries,
+            splits_map=split_map,
+        ))
+
+    return BulkSplitsResponse(
+        competition=CompetitionBrief(
+            id=competition.id,
+            name=competition.name,
+            date=str(competition.date),
+        ),
+        control_points=cps_ordered,
+        athletes=athletes,
+        total=len(athletes),
+    )
 
 
 # ===== 11.1 Create Result =====
@@ -117,22 +286,48 @@ async def create_result(
             detail='Result already exists for this user'
         )
 
-    # Validate class
-    if data.competition_class and competition.class_list:
-        if data.competition_class not in competition.class_list:
+    # Validate start time based on start format
+    from ..enums.start_format import StartFormat
+    if competition.start_format == StartFormat.SEPARATED_START:
+        if not registration.start_time:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f'Invalid class. Available: {", ".join(competition.class_list)}'
+                detail='Cannot create result: athlete has no start time assigned'
+            )
+    elif competition.start_format == StartFormat.MASS_START:
+        if not competition.start_time:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Cannot create result: competition start time is not set'
             )
 
-    # Validate splits control points
-    if data.splits and competition.control_points_list:
-        split_points = [s.control_point for s in data.splits]
-        if split_points != competition.control_points_list:
+    # Validate class against distances
+    from ..competition import distance_crud
+    distance = None
+    if data.competition_class:
+        all_classes = distance_crud.get_all_classes_for_competition(db, competition_id)
+        if all_classes and data.competition_class not in all_classes:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f'Invalid control points. Expected: {", ".join(competition.control_points_list)}'
+                detail=f'Invalid class. Available: {", ".join(all_classes)}'
             )
+        distance = distance_crud.get_distance_by_class(db, competition_id, data.competition_class)
+
+    # Validate splits against distance control points
+    if data.splits and distance and distance.control_points:
+        expected_codes = [cp.code for cp in distance.control_points]
+        split_points = [s.control_point for s in data.splits]
+        if split_points != expected_codes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f'Invalid control points. Expected: {", ".join(expected_codes)}'
+            )
+
+    # Auto-DSQ if time exceeds distance control time
+    result_status = data.status
+    if distance and distance.control_time and data.time_total and data.time_total > distance.control_time:
+        from ..enums.result_status import ResultStatus
+        result_status = ResultStatus.DSQ
 
     # Create result
     result = result_crud.create_result(
@@ -141,26 +336,30 @@ async def create_result(
         competition_id=competition_id,
         competition_class=data.competition_class,
         time_total=data.time_total,
-        status=data.status,
+        status=result_status,
+        distance_id=distance.id if distance else None,
     )
 
     # Create splits
     if data.splits:
         splits_data = [{'control_point': s.control_point, 'cumulative_time': s.cumulative_time} for s in data.splits]
-        result_crud.create_splits(db, result.id, splits_data)
+        result_crud.create_splits(db, result.id, splits_data, distance=distance)
         db.refresh(result)
 
     # Recalculate positions
     if data.competition_class:
         result_crud.recalculate_class_positions(db, competition_id, data.competition_class)
     result_crud.recalculate_positions(db, competition_id)
+    trigger_total_recalculation(db, competition_id)
     db.refresh(result)
 
     return ResultResponse(
         id=result.id,
         user_id=result.user_id,
         competition_id=result.competition_id,
+        distance_id=result.distance_id,
         workout_id=result.workout_id,
+        bib_number=registration.bib_number,
         competition_class=result.class_,
         position=result.position,
         position_overall=result.position_overall,
@@ -178,6 +377,7 @@ async def create_result(
 async def list_results(
     competition_id: int,
     competition_class: str | None = Query(None, alias='class'),
+    distance_id: int | None = Query(None),
     result_status: str | None = Query(None, alias='status'),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -202,6 +402,7 @@ async def list_results(
     results, total = result_crud.get_results(
         db, competition_id,
         competition_class=competition_class,
+        distance_id=distance_id,
         status=status_filter,
         limit=limit,
         offset=offset
@@ -212,24 +413,29 @@ async def list_results(
     for r in results:
         items.append(ResultListItem(
             id=r.id,
-            user=build_user_brief(r.user),
+            user=build_user_brief(db, r.user),
+            bib_number=get_bib_number(db, r.user_id, competition_id),
+            distance_id=r.distance_id,
+            distance_name=r.distance.name if r.distance else None,
             competition_class=r.class_,
-            position=r.position,
+            position_in_class=r.position,
+            position_in_distance=r.position_in_distance,
             time_total=r.time_total,
             time_behind_leader=r.time_behind_leader,
+            time_behind_distance_leader=r.time_behind_distance_leader,
             status=r.status,
             has_splits=len(r.splits) > 0 if r.splits else False,
         ))
 
-    # Get class summaries
+    # Get summaries
     class_summaries = result_crud.get_class_summaries(db, competition_id)
+    distance_summaries = result_crud.get_distance_summaries(db, competition_id)
 
     return ResultsListResponse(
         competition=CompetitionBrief(
             id=competition.id,
             name=competition.name,
             date=str(competition.date),
-            control_points_list=competition.control_points_list,
         ),
         results=items,
         classes=[
@@ -239,6 +445,15 @@ async def list_results(
                 leader_time=s['leader_time'],
             )
             for s in class_summaries
+        ],
+        distances=[
+            DistanceSummary(
+                distance_id=s['distance_id'],
+                distance_name=s['distance_name'],
+                count=s['count'],
+                leader_time=s['leader_time'],
+            )
+            for s in distance_summaries
         ],
         total=total,
         limit=limit,
@@ -266,33 +481,18 @@ async def get_my_result(
         )
 
     # Build splits with positions
-    splits_response = []
-    if result.splits and result.class_:
-        for split in sorted(result.splits, key=lambda x: x.sequence):
-            positions = result_crud.get_split_positions(
-                db, competition_id, result.class_, split.control_point
-            )
-            pos_data = positions.get(result.id, (None, None))
-
-            splits_response.append(SplitDetailResponse(
-                control_point=split.control_point,
-                sequence=split.sequence,
-                cumulative_time=split.cumulative_time,
-                split_time=split.split_time,
-                position=pos_data[0],
-                time_behind_best=pos_data[1],
-            ))
+    splits_response = build_splits_detail_response(db, result, competition_id) if result.splits else []
 
     return ResultDetailResponse(
         id=result.id,
-        user=build_user_brief(result.user),
+        user=build_user_brief(db, result.user),
         competition=CompetitionBrief(
             id=competition.id,
             name=competition.name,
             date=str(competition.date),
-            control_points_list=competition.control_points_list,
         ),
         workout_id=result.workout_id,
+        bib_number=get_bib_number(db, result.user_id, competition_id),
         competition_class=result.class_,
         position=result.position,
         position_overall=result.position_overall,
@@ -323,34 +523,18 @@ async def get_result_detail(
         )
 
     # Build splits with positions
-    splits_response = []
-    if result.splits and result.class_:
-        for split in sorted(result.splits, key=lambda x: x.sequence):
-            # Get position for this split
-            positions = result_crud.get_split_positions(
-                db, competition_id, result.class_, split.control_point
-            )
-            pos_data = positions.get(result.id, (None, None))
-
-            splits_response.append(SplitDetailResponse(
-                control_point=split.control_point,
-                sequence=split.sequence,
-                cumulative_time=split.cumulative_time,
-                split_time=split.split_time,
-                position=pos_data[0],
-                time_behind_best=pos_data[1],
-            ))
+    splits_response = build_splits_detail_response(db, result, competition_id) if result.splits else []
 
     return ResultDetailResponse(
         id=result.id,
-        user=build_user_brief(result.user),
+        user=build_user_brief(db, result.user),
         competition=CompetitionBrief(
             id=competition.id,
             name=competition.name,
             date=str(competition.date),
-            control_points_list=competition.control_points_list,
         ),
         workout_id=result.workout_id,
+        bib_number=get_bib_number(db, result.user_id, competition_id),
         competition_class=result.class_,
         position=result.position,
         position_overall=result.position_overall,
@@ -389,51 +573,68 @@ async def update_result(
             detail='Result not found in this competition'
         )
 
-    # Validate class
-    if data.competition_class and competition.class_list:
-        if data.competition_class not in competition.class_list:
+    # Validate class against distances
+    from ..competition import distance_crud
+    if data.competition_class:
+        all_classes = distance_crud.get_all_classes_for_competition(db, competition_id)
+        if all_classes and data.competition_class not in all_classes:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f'Invalid class. Available: {", ".join(competition.class_list)}'
+                detail=f'Invalid class. Available: {", ".join(all_classes)}'
             )
 
     # Validate and replace splits
     if data.splits:
-        if competition.control_points_list:
+        effective_class = data.competition_class or result.class_
+        distance = distance_crud.get_distance_by_class(db, competition_id, effective_class) if effective_class else None
+        if distance and distance.control_points:
+            expected_codes = [cp.code for cp in distance.control_points]
             split_points = [s.control_point for s in data.splits]
-            if split_points != competition.control_points_list:
+            if split_points != expected_codes:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f'Invalid control points. Expected: {", ".join(competition.control_points_list)}'
+                    detail=f'Invalid control points. Expected: {", ".join(expected_codes)}'
                 )
         splits_data = [{'control_point': s.control_point, 'cumulative_time': s.cumulative_time} for s in data.splits]
-        result_crud.replace_splits(db, result.id, splits_data)
+        result_crud.replace_splits(db, result.id, splits_data, distance=distance)
 
     # Track if we need to recalculate
     old_class = result.class_
     needs_recalc = False
 
+    # Auto-DSQ if updated time exceeds distance control time
+    update_status = data.status
+    if data.time_total is not None:
+        effective_class = data.competition_class or result.class_
+        dist = distance_crud.get_distance_by_class(db, competition_id, effective_class) if effective_class else None
+        if dist and dist.control_time and data.time_total > dist.control_time:
+            from ..enums.result_status import ResultStatus
+            update_status = ResultStatus.DSQ
+
     # Update result
-    if data.time_total is not None or data.status is not None or data.competition_class is not None:
+    if data.time_total is not None or update_status is not None or data.competition_class is not None:
         needs_recalc = True
 
     updated = result_crud.update_result(
         db, result,
         time_total=data.time_total,
-        status=data.status,
+        status=update_status,
         competition_class=data.competition_class,
     )
 
     # Recalculate positions if needed
     if needs_recalc:
         result_crud.recalculate_positions(db, competition_id)
+        trigger_total_recalculation(db, competition_id)
         db.refresh(updated)
 
     return ResultResponse(
         id=updated.id,
         user_id=updated.user_id,
         competition_id=updated.competition_id,
+        distance_id=updated.distance_id,
         workout_id=updated.workout_id,
+        bib_number=get_bib_number(db, updated.user_id, competition_id),
         competition_class=updated.class_,
         position=updated.position,
         position_overall=updated.position_overall,
@@ -476,6 +677,7 @@ async def delete_result(
 
     # Recalculate positions
     result_crud.recalculate_positions(db, competition_id)
+    trigger_total_recalculation(db, competition_id)
 
     return None
 
@@ -499,6 +701,7 @@ async def recalculate_positions(
         )
 
     results_count, classes_count = result_crud.recalculate_positions(db, competition_id)
+    trigger_total_recalculation(db, competition_id)
 
     return RecalculateResponse(
         recalculated=True,
@@ -548,9 +751,24 @@ async def import_results(
     skipped = 0
     errors = []
 
-    # Get control points for split columns
-    control_points = competition.control_points_list or []
-    split_columns = [f'split_{cp}' for cp in control_points]
+    # Get control points from distances for split columns
+    from ..competition import distance_crud
+    all_distances = distance_crud.get_distances_by_competition(db, competition_id)
+
+    # Build a map of class -> distance for resolving CPs
+    class_to_distance = {}
+    all_cp_codes = []
+    for dist in all_distances:
+        if dist.classes:
+            for cls in dist.classes:
+                class_to_distance[cls] = dist
+        if dist.control_points:
+            for cp in dist.control_points:
+                if cp.code not in all_cp_codes:
+                    all_cp_codes.append(cp.code)
+
+    # Use all CP codes as split columns (for generic import)
+    control_points = all_cp_codes
 
     for row_num, row in enumerate(reader, start=2):  # Start at 2 (1 is header)
         bib_number = row.get('bib_number', '').strip()
@@ -577,12 +795,12 @@ async def import_results(
         time_total = None
         if row.get('time_total'):
             try:
-                time_total = int(row['time_total'])
+                time_total = parse_time_to_ms(row['time_total'])
             except ValueError:
                 errors.append(ImportResultItem(
                     row=row_num,
                     bib_number=bib_number,
-                    error='Invalid time_total'
+                    error='Invalid time_total — use ms integer or MM:SS[.s] / HH:MM:SS[.s]'
                 ))
                 continue
 
@@ -599,13 +817,21 @@ async def import_results(
             col = f'split_{cp}'
             if col in row and row[col]:
                 try:
-                    cumulative = int(row[col])
+                    cumulative = parse_time_to_ms(row[col])
                     splits_data.append({
                         'control_point': cp,
                         'cumulative_time': cumulative
                     })
                 except ValueError:
-                    pass
+                    pass  # Skip unparseable split value
+
+        # Resolve distance for this registration's class
+        reg_distance = class_to_distance.get(registration.class_) if registration.class_ else None
+
+        # Auto-DSQ if time exceeds distance control time
+        if reg_distance and reg_distance.control_time and time_total and time_total > reg_distance.control_time:
+            from ..enums.result_status import ResultStatus
+            result_status = ResultStatus.DSQ
 
         # Create or update result
         existing = result_crud.get_result_by_user(db, registration.user_id, competition_id)
@@ -617,7 +843,7 @@ async def import_results(
                 competition_class=registration.class_,
             )
             if splits_data:
-                result_crud.replace_splits(db, existing.id, splits_data)
+                result_crud.replace_splits(db, existing.id, splits_data, distance=reg_distance)
             updated += 1
         else:
             result = result_crud.create_result(
@@ -627,13 +853,15 @@ async def import_results(
                 competition_class=registration.class_,
                 time_total=time_total,
                 status=result_status,
+                distance_id=reg_distance.id if reg_distance else None,
             )
             if splits_data:
-                result_crud.create_splits(db, result.id, splits_data)
+                result_crud.create_splits(db, result.id, splits_data, distance=reg_distance)
             imported += 1
 
     # Recalculate positions after import
     result_crud.recalculate_positions(db, competition_id)
+    trigger_total_recalculation(db, competition_id)
 
     return ImportResponse(
         imported=imported,

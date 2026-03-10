@@ -15,7 +15,7 @@ class WorkoutCreate(BaseModel):
     sport_kind: SportKind
     start_datetime: datetime
     finish_datetime: datetime | None = None
-    duration_seconds: int | None = None
+    duration_ms: int | None = None
     distance_meters: int | None = None
     elevation_gain: int | None = None
     privacy: Privacy = Privacy.PRIVATE
@@ -92,7 +92,7 @@ class WorkoutResponse(BaseModel):
     status: WorkoutStatus
     start_datetime: datetime
     finish_datetime: datetime | None = None
-    duration_seconds: int | None = None
+    duration_ms: int | None = None
     distance_meters: int | None = None
     elevation_gain: int | None = None
     has_splits: bool = False
@@ -109,7 +109,7 @@ class WorkoutListItem(BaseModel):
     privacy: Privacy
     status: WorkoutStatus
     start_datetime: datetime
-    duration_seconds: int | None = None
+    duration_ms: int | None = None
     distance_meters: int | None = None
     elevation_gain: int | None = None
     has_splits: bool = False
@@ -136,7 +136,7 @@ class WorkoutDetailResponse(BaseModel):
     status: WorkoutStatus
     start_datetime: datetime
     finish_datetime: datetime | None = None
-    duration_seconds: int | None = None
+    duration_ms: int | None = None
     distance_meters: int | None = None
     elevation_gain: int | None = None
     splits: list[WorkoutSplitResponse] | None = None

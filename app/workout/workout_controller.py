@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -63,7 +63,7 @@ def build_workout_list_item(workout, db: Session) -> WorkoutListItem:
         privacy=workout.privacy,
         status=workout.status,
         start_datetime=workout.start_datetime,
-        duration_seconds=workout.duration_seconds,
+        duration_ms=workout.duration_ms,
         distance_meters=workout.distance_meters,
         elevation_gain=workout.elevation_gain,
         has_splits=len(workout.splits) > 0 if workout.splits else False,
@@ -81,6 +81,29 @@ async def create_workout(
     db: Session = Depends(get_db)
 ):
     """Create a new workout."""
+    # Auto-calculate finish_datetime / duration_ms
+    if data.finish_datetime and data.duration_ms:
+        expected = data.start_datetime + timedelta(milliseconds=data.duration_ms)
+        if abs((data.finish_datetime - expected).total_seconds()) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='finish_datetime and duration_ms are inconsistent with start_datetime'
+            )
+    elif data.finish_datetime and not data.duration_ms:
+        if data.finish_datetime <= data.start_datetime:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='finish_datetime must be after start_datetime'
+            )
+        data.duration_ms = int((data.finish_datetime - data.start_datetime).total_seconds() * 1000)
+    elif data.duration_ms and not data.finish_datetime:
+        if data.duration_ms <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='duration_ms must be positive'
+            )
+        data.finish_datetime = data.start_datetime + timedelta(milliseconds=data.duration_ms)
+
     workout = workout_crud.create_workout(db, current_user.id, data)
 
     return WorkoutResponse(
@@ -93,7 +116,7 @@ async def create_workout(
         status=workout.status,
         start_datetime=workout.start_datetime,
         finish_datetime=workout.finish_datetime,
-        duration_seconds=workout.duration_seconds,
+        duration_ms=workout.duration_ms,
         distance_meters=workout.distance_meters,
         elevation_gain=workout.elevation_gain,
         has_splits=False,
@@ -211,7 +234,7 @@ async def get_workout(
         status=workout.status,
         start_datetime=workout.start_datetime,
         finish_datetime=workout.finish_datetime,
-        duration_seconds=workout.duration_seconds,
+        duration_ms=workout.duration_ms,
         distance_meters=workout.distance_meters,
         elevation_gain=workout.elevation_gain,
         splits=splits,
@@ -298,7 +321,7 @@ async def update_workout(
         status=updated.status,
         start_datetime=updated.start_datetime,
         finish_datetime=updated.finish_datetime,
-        duration_seconds=updated.duration_seconds,
+        duration_ms=updated.duration_ms,
         distance_meters=updated.distance_meters,
         elevation_gain=updated.elevation_gain,
         has_splits=len(updated.splits) > 0 if updated.splits else False,

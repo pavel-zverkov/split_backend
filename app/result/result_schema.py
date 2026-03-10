@@ -26,10 +26,61 @@ class SplitDetailResponse(BaseModel):
     sequence: int
     cumulative_time: int
     split_time: int
-    position: int | None = None
-    time_behind_best: int | None = None
+    # --- split leg positions ---
+    position: int | None = None                                      # rank by split_time in class
+    time_behind_best: int | None = None                              # ms behind best split_time in class
+    position_in_distance: int | None = None                          # rank by split_time in distance
+    time_behind_best_in_distance: int | None = None                  # ms behind best split_time in distance
+    # --- cumulative positions ---
+    cumulative_position: int | None = None                           # rank by cumulative_time in class
+    cumulative_time_behind_best: int | None = None                   # ms behind best cumulative_time in class
+    cumulative_position_in_distance: int | None = None               # rank by cumulative_time in distance
+    cumulative_time_behind_best_in_distance: int | None = None       # ms behind best cumulative_time in distance
 
     model_config = {'from_attributes': True}
+
+
+# ===== Bulk Splits =====
+
+class BulkSplitEntry(BaseModel):
+    control_point: str
+    sequence: int
+    split_time: int
+    cumulative_time: int
+    # class-scoped
+    position: int | None = None
+    time_behind_best: int | None = None
+    cumulative_position: int | None = None
+    cumulative_time_behind_best: int | None = None
+    # distance-scoped
+    position_in_distance: int | None = None
+    time_behind_best_in_distance: int | None = None
+    cumulative_position_in_distance: int | None = None
+    cumulative_time_behind_best_in_distance: int | None = None
+
+    model_config = {'from_attributes': True}
+
+
+class AthleteBulkSplits(BaseModel):
+    result_id: int
+    user: 'ResultUserBrief'
+    bib_number: str | None = None
+    competition_class: str | None = Field(None, alias='class')
+    distance_id: int | None = None
+    time_total: int | None = None
+    status: ResultStatus
+    position: int | None = None
+    splits: list[BulkSplitEntry]
+    splits_map: dict[str, BulkSplitEntry]
+
+    model_config = {'populate_by_name': True}
+
+
+class BulkSplitsResponse(BaseModel):
+    competition: 'CompetitionBrief'
+    control_points: list[str]
+    athletes: list[AthleteBulkSplits]
+    total: int
 
 
 # ===== User/Club Brief =====
@@ -55,7 +106,6 @@ class CompetitionBrief(BaseModel):
     id: int
     name: str
     date: str
-    control_points_list: list[str] | None = None
 
     model_config = {'from_attributes': True}
 
@@ -91,7 +141,9 @@ class ResultResponse(BaseModel):
     id: int
     user_id: int
     competition_id: int
+    distance_id: int | None = None
     workout_id: int | None = None
+    bib_number: str | None = None
     competition_class: str | None = Field(None, alias='class')
     position: int | None = None
     position_overall: int | None = None
@@ -107,10 +159,15 @@ class ResultResponse(BaseModel):
 class ResultListItem(BaseModel):
     id: int
     user: ResultUserBrief
+    bib_number: str | None = None
+    distance_id: int | None = None
+    distance_name: str | None = None
     competition_class: str | None = Field(None, alias='class')
-    position: int | None = None
+    position_in_class: int | None = None
+    position_in_distance: int | None = None
     time_total: int | None = None
-    time_behind_leader: int | None = None
+    time_behind_leader: int | None = None           # vs class leader
+    time_behind_distance_leader: int | None = None  # vs distance leader
     status: ResultStatus
     has_splits: bool = False
 
@@ -125,10 +182,18 @@ class ClassSummary(BaseModel):
     model_config = {'populate_by_name': True}
 
 
+class DistanceSummary(BaseModel):
+    distance_id: int
+    distance_name: str
+    count: int
+    leader_time: int | None = None
+
+
 class ResultsListResponse(BaseModel):
     competition: CompetitionBrief
     results: list[ResultListItem]
     classes: list[ClassSummary]
+    distances: list[DistanceSummary]
     total: int
     limit: int
     offset: int
@@ -139,6 +204,7 @@ class ResultDetailResponse(BaseModel):
     user: ResultUserBrief
     competition: CompetitionBrief
     workout_id: int | None = None
+    bib_number: str | None = None
     competition_class: str | None = Field(None, alias='class')
     position: int | None = None
     position_overall: int | None = None

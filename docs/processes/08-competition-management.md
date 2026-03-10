@@ -17,20 +17,43 @@ A **Competition** is a single race/contest within an event. Events can have one 
 
 ### Competition Status
 
-Competition status is **independent** of event status. Each competition has its own lifecycle:
+**Multi-stage events:** Competition status is **independent** of event status. Each competition has its own lifecycle, including registration control.
+
+**Single-format events:** Competition status is **auto-synced** with event status (see [06. Event Management](./06-event-management.md#single-vs-multi-stage-events)). The status transitions and conditions below apply only to multi-stage event competitions.
 
 | Status | Description |
 |--------|-------------|
-| `planned` | Upcoming |
+| `planned` | Upcoming, registration not open |
+| `registration_open` | Athletes can self-register |
+| `registration_closed` | Self-registration closed, team members can still register athletes |
 | `in_progress` | Currently running |
 | `finished` | Completed |
 | `cancelled` | Cancelled |
 
-**Example:** Event runs Feb 1-8 with daily competitions:
+**Status transitions:**
+| From | Allowed To |
+|------|------------|
+| `planned` | `registration_open`, `cancelled` |
+| `registration_open` | `registration_closed`, `in_progress`, `cancelled` |
+| `registration_closed` | `registration_open`, `in_progress`, `cancelled` |
+| `in_progress` | `finished`, `cancelled` |
+| `finished` | — (terminal) |
+| `cancelled` | — (terminal) |
+
+**Additional transition conditions:**
+
+| Transition | Condition |
+|------------|-----------|
+| → `in_progress` | `competition.start_time` must be set. Current date must be ≥ `competition.date`. For `separated_start`: all registered/confirmed athletes must have `bib_number` and `start_time` set. For `mass_start`: all registered/confirmed athletes must have `bib_number` set. For `free`: no start list requirements. |
+| → `finished` | Current date must be > `competition.date` (cannot finish on competition day). All registered/confirmed athletes must have a Result record. |
+
+**Example (multi-stage):** Event runs Feb 1-8 with daily competitions:
 - Event status: `in_progress` (Feb 3)
 - Feb 1 competition: `finished`
 - Feb 3 competition: `in_progress`
-- Feb 5 competition: `planned`
+- Feb 5 competition: `registration_open`
+
+**Note (multi-stage):** When the parent event transitions to `finished`, all child competitions are auto-transitioned: `in_progress` → `finished`, others → `cancelled`.
 
 ### Control Points
 
@@ -58,6 +81,7 @@ By default, all event team members are assigned to all competitions. This can be
   "description": "Classic long distance race",
   "date": "2024-06-15",
   "start_format": "separated_start",
+  "start_time": "2024-06-15T10:00:00",
   "class_list": ["M21", "M35", "W21", "W35"],
   "control_points_list": ["31", "45", "78", "92", "finish"],
   "distance_meters": 12500,
@@ -91,6 +115,7 @@ By default, all event team members are assigned to all competitions. This can be
   "distance_meters": 12500,
   "location": "Losiny Ostrov",
   "status": "planned",
+  "start_time": "2024-06-15T10:00:00",
   "registrations_count": 0,
   "created_at": "2024-01-15T10:00:00Z"
 }
@@ -120,6 +145,7 @@ By default, all event team members are assigned to all competitions. This can be
       "distance_meters": 12500,
       "location": "Losiny Ostrov",
       "status": "planned",
+      "start_time": "2024-06-15T10:00:00",
       "registrations_count": 85,
       "classes_count": 4
     }
@@ -155,6 +181,7 @@ By default, all event team members are assigned to all competitions. This can be
   "distance_meters": 12500,
   "location": "Losiny Ostrov",
   "status": "planned",
+  "start_time": "2024-06-15T10:00:00",
   "registrations_count": 85,
   "team_count": 5,
   "my_registration": {
@@ -184,19 +211,12 @@ By default, all event team members are assigned to all competitions. This can be
 }
 ```
 
-**Updatable fields:** `name`, `description`, `date`, `start_format`, `class_list`, `control_points_list`, `distance_meters`, `location`, `status`
+**Updatable fields:** `name`, `description`, `date`, `start_format`, `start_time`, `class_list`, `control_points_list`, `distance_meters`, `location`, `status`
 
 **Restrictions:**
 - Cannot modify `class_list` or `control_points_list` if Results exist
-- Cannot change `status` to `finished` if there are registrations with `registered` status (not started)
 
-**Status transition rules:**
-| From | Allowed To |
-|------|------------|
-| `planned` | `in_progress`, `cancelled` |
-| `in_progress` | `finished`, `cancelled` |
-| `finished` | — (terminal) |
-| `cancelled` | — (terminal) |
+**Status transition rules:** See status transitions table above. Additional conditions apply for `→ in_progress` (date + start list readiness) and `→ finished` (date + all results present).
 
 **Response:** `200 OK` (updated competition object)
 

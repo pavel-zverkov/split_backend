@@ -7,6 +7,7 @@ from ..database import get_db
 from ..auth.auth_service import get_current_user, get_current_user_optional
 from ..user.user_model import User
 from ..enums.competition_status import CompetitionStatus
+from ..enums.event_format import EventFormat
 from ..enums.event_role import EventRole
 from ..event import event_crud
 from . import competition_crud
@@ -18,6 +19,7 @@ from .competition_schema import (
     CompetitionListResponse,
     CompetitionDetailResponse,
     EventBrief,
+    MyRegistrationBrief,
     CompetitionTeamItem,
     CompetitionTeamListResponse,
     TeamUserBrief,
@@ -71,6 +73,13 @@ async def create_competition(
     """Create a new competition in an event."""
     event = get_event_or_404(db, event_id)
 
+    # Block creation for single-format events
+    if event.event_format == EventFormat.SINGLE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Cannot add competitions to single-format events'
+        )
+
     # Check permissions
     if not competition_crud.can_manage_competition(db, current_user.id, event_id):
         raise HTTPException(
@@ -90,12 +99,11 @@ async def create_competition(
         date=competition.date,
         sport_kind=competition.sport_kind,
         start_format=competition.start_format,
-        class_list=competition.class_list,
-        control_points_list=competition.control_points_list,
-        distance_meters=competition.distance_meters,
         location=competition.location,
         status=competition.status,
+        start_time=competition.start_time,
         registrations_count=0,
+        distances_count=0,
         created_at=competition.created_at,
     )
 
@@ -125,6 +133,8 @@ async def list_competitions(
         offset=offset
     )
 
+    from . import distance_crud
+
     items = []
     for comp in competitions:
         items.append(CompetitionListItem(
@@ -133,11 +143,11 @@ async def list_competitions(
             date=comp.date,
             sport_kind=comp.sport_kind,
             start_format=comp.start_format,
-            distance_meters=comp.distance_meters,
             location=comp.location,
             status=comp.status,
+            start_time=comp.start_time,
             registrations_count=competition_crud.get_registrations_count(db, comp.id),
-            classes_count=len(comp.class_list) if comp.class_list else 0,
+            distances_count=distance_crud.get_distances_count(db, comp.id),
         ))
 
     return CompetitionListResponse(
@@ -166,6 +176,22 @@ async def get_competition(
 
     team, team_count = competition_crud.get_competition_team(db, competition_id, limit=1000)
 
+    # Get current user's registration if authenticated
+    my_registration = None
+    if current_user:
+        from . import registration_crud
+        reg = registration_crud.get_registration_by_user(db, current_user.id, competition_id)
+        if reg:
+            my_registration = MyRegistrationBrief(
+                id=reg.id,
+                competition_class=reg.class_,
+                bib_number=reg.bib_number,
+                start_time=reg.start_time,
+                status=reg.status.value,
+            )
+
+    from . import distance_crud
+
     return CompetitionDetailResponse(
         id=competition.id,
         event_id=competition.event_id,
@@ -175,14 +201,13 @@ async def get_competition(
         date=competition.date,
         sport_kind=competition.sport_kind,
         start_format=competition.start_format,
-        class_list=competition.class_list,
-        control_points_list=competition.control_points_list,
-        distance_meters=competition.distance_meters,
         location=competition.location,
         status=competition.status,
+        start_time=competition.start_time,
         registrations_count=competition_crud.get_registrations_count(db, competition_id),
+        distances_count=distance_crud.get_distances_count(db, competition_id),
         team_count=team_count,
-        my_registration=None,  # TODO: Implement when registration is done
+        my_registration=my_registration,
         created_at=competition.created_at,
     )
 
@@ -218,14 +243,27 @@ async def update_competition(
             detail=f'Invalid status transition from {competition.status.value} to {data.status.value}'
         )
 
-    # Check if modifying class_list/control_points_list with existing results
-    if (data.class_list or data.control_points_list) and competition_crud.get_results_count(db, competition_id) > 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail='Cannot modify class_list or control_points_list when results exist'
-        )
+    # Validate → IN_PROGRESS transition
+    if data.status == CompetitionStatus.IN_PROGRESS and competition.status != CompetitionStatus.IN_PROGRESS:
+        error = competition_crud.validate_competition_for_in_progress(db, competition)
+        if error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error
+            )
+
+    # Validate → FINISHED transition
+    if data.status == CompetitionStatus.FINISHED and competition.status != CompetitionStatus.FINISHED:
+        error = competition_crud.validate_competition_for_finished(db, competition)
+        if error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error
+            )
 
     updated = competition_crud.update_competition(db, competition, data)
+
+    from . import distance_crud
 
     return CompetitionResponse(
         id=updated.id,
@@ -235,12 +273,11 @@ async def update_competition(
         date=updated.date,
         sport_kind=updated.sport_kind,
         start_format=updated.start_format,
-        class_list=updated.class_list,
-        control_points_list=updated.control_points_list,
-        distance_meters=updated.distance_meters,
         location=updated.location,
         status=updated.status,
+        start_time=updated.start_time,
         registrations_count=competition_crud.get_registrations_count(db, competition_id),
+        distances_count=distance_crud.get_distances_count(db, competition_id),
         created_at=updated.created_at,
     )
 
@@ -260,6 +297,13 @@ async def delete_competition(
     """Delete a competition."""
     event = get_event_or_404(db, event_id)
     competition = get_competition_or_404(db, competition_id, event_id)
+
+    # Block deletion for single-format events
+    if event.event_format == EventFormat.SINGLE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Cannot delete the competition of a single-format event'
+        )
 
     # Check permissions
     if not competition_crud.can_delete_competition(db, current_user.id, event_id):
@@ -306,7 +350,7 @@ async def list_competition_team(
                 id=member['user'].id,
                 username_display=member['user'].username_display,
                 first_name=member['user'].first_name,
-                last_name=f"{member['user'].last_name[0]}." if member['user'].last_name else None,
+                last_name=member["user"].last_name,
             ),
             role=member['role'],
             position=member['position'],

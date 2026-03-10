@@ -24,7 +24,7 @@ class Workout(Base):
     sport_kind = Column(Enum(SportKind), nullable=False)
     start_datetime = Column(DateTime, nullable=False)
     finish_datetime = Column(DateTime, nullable=True)
-    duration_seconds = Column(Integer, nullable=True)
+    duration_ms = Column(Integer, nullable=True)
     distance_meters = Column(Integer, nullable=True)
     elevation_gain = Column(Integer, nullable=True)
     status = Column(Enum(WorkoutStatus), nullable=False, default=WorkoutStatus.DRAFT)

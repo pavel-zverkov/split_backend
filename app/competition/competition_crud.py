@@ -39,10 +39,8 @@ def create_competition(
         date=data.date,
         sport_kind=data.sport_kind or sport_kind,
         start_format=data.start_format,
-        class_list=data.class_list,
-        control_points_list=data.control_points_list,
-        distance_meters=data.distance_meters,
         location=data.location,
+        start_time=data.start_time,
         status=CompetitionStatus.PLANNED,
     )
     db.add(competition)
@@ -99,7 +97,9 @@ def get_results_count(db: Session, competition_id: int) -> int:
 
 # Status transition rules
 VALID_STATUS_TRANSITIONS = {
-    CompetitionStatus.PLANNED: [CompetitionStatus.IN_PROGRESS, CompetitionStatus.CANCELLED],
+    CompetitionStatus.PLANNED: [CompetitionStatus.REGISTRATION_OPEN, CompetitionStatus.CANCELLED],
+    CompetitionStatus.REGISTRATION_OPEN: [CompetitionStatus.REGISTRATION_CLOSED, CompetitionStatus.IN_PROGRESS, CompetitionStatus.CANCELLED],
+    CompetitionStatus.REGISTRATION_CLOSED: [CompetitionStatus.REGISTRATION_OPEN, CompetitionStatus.IN_PROGRESS, CompetitionStatus.CANCELLED],
     CompetitionStatus.IN_PROGRESS: [CompetitionStatus.FINISHED, CompetitionStatus.CANCELLED],
     CompetitionStatus.FINISHED: [],
     CompetitionStatus.CANCELLED: [],
@@ -110,6 +110,82 @@ def is_valid_status_transition(current: CompetitionStatus, new: CompetitionStatu
     if current == new:
         return True
     return new in VALID_STATUS_TRANSITIONS.get(current, [])
+
+
+def validate_competition_for_in_progress(db: Session, competition: Competition) -> str | None:
+    """Validate competition can transition to IN_PROGRESS. Returns error message or None."""
+    from datetime import date as date_type
+    from ..enums.start_format import StartFormat
+    from .competition_registration_model import CompetitionRegistration
+    from ..enums.registration_status import RegistrationStatus
+
+    if competition.start_time is None:
+        return 'Competition start time must be set before starting'
+
+    today = date_type.today()
+    if today < competition.date:
+        return f'Cannot start competition before its date ({competition.date})'
+
+    # For separated_start: check that all registered athletes have bib_number and start_time
+    if competition.start_format == StartFormat.SEPARATED_START:
+        not_ready = db.query(CompetitionRegistration).filter(
+            CompetitionRegistration.competition_id == competition.id,
+            CompetitionRegistration.status.in_([
+                RegistrationStatus.REGISTERED,
+                RegistrationStatus.CONFIRMED,
+            ]),
+            (CompetitionRegistration.bib_number.is_(None)) | (CompetitionRegistration.start_time.is_(None))
+        ).count()
+
+        if not_ready > 0:
+            return f'Start list is not ready: {not_ready} registration(s) missing bib number or start time'
+
+    # For mass_start: check that all registered athletes have bib_number
+    elif competition.start_format == StartFormat.MASS_START:
+        not_ready = db.query(CompetitionRegistration).filter(
+            CompetitionRegistration.competition_id == competition.id,
+            CompetitionRegistration.status.in_([
+                RegistrationStatus.REGISTERED,
+                RegistrationStatus.CONFIRMED,
+            ]),
+            CompetitionRegistration.bib_number.is_(None)
+        ).count()
+
+        if not_ready > 0:
+            return f'Start list is not ready: {not_ready} registration(s) missing bib number'
+
+    return None
+
+
+def validate_competition_for_finished(db: Session, competition: Competition) -> str | None:
+    """Validate competition can transition to FINISHED. Returns error message or None."""
+    from datetime import date as date_type
+    from .competition_registration_model import CompetitionRegistration
+    from ..result.result_model import Result
+    from ..enums.registration_status import RegistrationStatus
+
+    today = date_type.today()
+    if today <= competition.date:
+        return f'Cannot finish competition on or before its date ({competition.date})'
+
+    # Check that all registered athletes have results
+    registered_count = db.query(CompetitionRegistration).filter(
+        CompetitionRegistration.competition_id == competition.id,
+        CompetitionRegistration.status.in_([
+            RegistrationStatus.REGISTERED,
+            RegistrationStatus.CONFIRMED,
+        ]),
+    ).count()
+
+    results_count = db.query(Result).filter(
+        Result.competition_id == competition.id,
+    ).count()
+
+    if results_count < registered_count:
+        missing = registered_count - results_count
+        return f'Cannot finish competition: {missing} registered athlete(s) have no results'
+
+    return None
 
 
 # Team functions

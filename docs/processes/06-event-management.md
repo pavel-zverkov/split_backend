@@ -7,11 +7,12 @@
 | 6.3 | `/api/events` | GET | List/search events |
 | 6.4 | `/api/events/{event_id}` | PATCH | Update event |
 | 6.5 | `/api/events/{event_id}` | DELETE | Delete event |
-| 6.6 | `/api/events/{event_id}/team` | GET | List team members |
-| 6.7 | `/api/events/{event_id}/team` | POST | Add team member |
-| 6.8 | `/api/events/{event_id}/team/{user_id}` | PATCH | Update team member |
-| 6.9 | `/api/events/{event_id}/team/{user_id}` | DELETE | Remove team member |
-| 6.10 | `/api/events/{event_id}/transfer-ownership` | POST | Transfer organizer role |
+| 6.6 | `/api/events/{event_id}/logo` | POST | Upload event logo |
+| 6.7 | `/api/events/{event_id}/team` | GET | List team members |
+| 6.8 | `/api/events/{event_id}/team` | POST | Add team member |
+| 6.9 | `/api/events/{event_id}/team/{user_id}` | PATCH | Update team member |
+| 6.10 | `/api/events/{event_id}/team/{user_id}` | DELETE | Remove team member |
+| 6.11 | `/api/events/{event_id}/transfer-ownership` | POST | Transfer organizer role |
 
 ## Event Concept
 
@@ -49,22 +50,36 @@ Each team role (except volunteer) can have a hierarchy:
 ### Event Status Flow
 
 ```
-draft ──┐
-        ├──► planned ──► registration_open ──► in_progress ──► finished
-        │                       │                   │
-        │                       └───────────────────┴──► cancelled
-        │
-   (optional)
+draft ↔ planned ──► in_progress ──► finished
+  ↓        ↓             ↓
+  └────────┴─────────────┴──► cancelled
 ```
 
 | Status | Description | Visible |
 |--------|-------------|---------|
 | `draft` | Event created, not visible to public | No |
-| `planned` | Visible, registration not open yet (default) | Yes |
-| `registration_open` | Athletes can register | Yes |
+| `planned` | Visible (default). Requires at least one competition to transition from draft. | Yes |
 | `in_progress` | Event running | Yes |
-| `finished` | Completed | Yes |
+| `finished` | Completed. Auto-finishes/cancels all child competitions. | Yes |
 | `cancelled` | Cancelled | Yes |
+
+### Single vs Multi-Stage Events
+
+Status management differs by event format:
+
+**Single-format events** (`event_format=single`):
+- Competition status is **auto-synced** with event status. The organizer only manages the event status; the child competition transitions automatically:
+  - Event `draft → planned` → Competition becomes `registration_open`
+  - Event `planned → in_progress` → Competition becomes `in_progress`
+  - Event `in_progress → finished` → Competition becomes `finished`
+  - Event `→ cancelled` → Competition becomes `cancelled`
+- Competition status cannot be changed independently.
+
+**Multi-stage events** (`event_format=multi_stage`):
+- Competition statuses are **independent** of event status. Each competition has its own lifecycle (see [08. Competition Management](./08-competition-management.md)).
+- When event transitions to `finished`, all child competitions are auto-transitioned: `in_progress` → `finished`, others → `cancelled`.
+
+**Note:** Registration is managed at the competition level, not the event level. Event responses include a computed `has_open_registration` field indicating whether any competition has `registration_open` status.
 
 ---
 
@@ -78,6 +93,7 @@ draft ──┐
 ```json
 {
   "name": "Moscow Open 2024",
+  "logo": null,
   "description": "Annual orienteering competition",
   "start_date": "2024-06-15",
   "end_date": "2024-06-16",
@@ -101,6 +117,7 @@ draft ──┐
 {
   "id": 1,
   "name": "Moscow Open 2024",
+  "logo": null,
   "description": "Annual orienteering competition",
   "start_date": "2024-06-15",
   "end_date": "2024-06-16",
@@ -113,6 +130,9 @@ draft ──┐
   "competitions_count": 0,
   "team_count": 1,
   "participants_count": 0,
+  "has_open_registration": false,
+  "recruitment_open": false,
+  "needed_roles": null,
   "created_at": "2024-01-15T10:00:00Z"
 }
 ```
@@ -128,13 +148,14 @@ draft ──┐
 {
   "id": 1,
   "name": "Moscow Open 2024",
+  "logo": "http://minio:9000/event-logos/1/logo.jpg",
   "description": "Annual orienteering competition",
   "start_date": "2024-06-15",
   "end_date": "2024-06-16",
   "location": "Moscow Region",
   "sport_kind": "orient",
   "privacy": "public",
-  "status": "registration_open",
+  "status": "planned",
   "max_participants": 500,
   "organizer": {
     "id": 5,
@@ -146,6 +167,9 @@ draft ──┐
   "team_count": 8,
   "my_role": "secretary",
   "my_position": "chief",
+  "has_open_registration": true,
+  "recruitment_open": true,
+  "needed_roles": ["judge", "volunteer"],
   "created_at": "2024-01-15T10:00:00Z"
 }
 ```
@@ -157,6 +181,15 @@ draft ──┐
 | Other statuses | Everyone (respecting `privacy` setting) |
 
 **`my_role` / `my_position`:** Only included if current user is a participant (any role).
+
+**Recruitment fields** (included in all event responses):
+| Field | Type | Description |
+|-------|------|-------------|
+| `has_open_registration` | bool | `true` if any competition has `registration_open` status |
+| `recruitment_open` | bool | Whether self-registration for team roles is enabled |
+| `needed_roles` | list[str] \| null | Roles open for recruitment (e.g. `["judge", "volunteer"]`) |
+
+Frontend uses `recruitment_open` + `needed_roles` to decide whether to show a "Join Team" button.
 
 ## 6.3 List/Search Events
 
@@ -179,15 +212,19 @@ draft ──┐
     {
       "id": 1,
       "name": "Moscow Open 2024",
+      "logo": "http://minio:9000/event-logos/1/logo.jpg",
       "start_date": "2024-06-15",
       "end_date": "2024-06-16",
       "location": "Moscow Region",
       "sport_kind": "orient",
       "privacy": "public",
-      "status": "registration_open",
+      "status": "planned",
       "competitions_count": 3,
       "participants_count": 120,
-      "my_role": null
+      "my_role": null,
+      "has_open_registration": true,
+      "recruitment_open": true,
+      "needed_roles": ["judge", "volunteer"]
     }
   ],
   "total": 25,
@@ -208,21 +245,33 @@ draft ──┐
 ```json
 {
   "name": "Moscow Open 2024 - Updated",
-  "status": "registration_open"
+  "status": "in_progress"
 }
 ```
 
-**Updatable fields:** `name`, `description`, `start_date`, `end_date`, `location`, `sport_kind`, `privacy`, `status`, `max_participants`
+**Updatable fields:** `name`, `logo`, `description`, `start_date`, `end_date`, `location`, `sport_kind`, `privacy`, `status`, `max_participants`
 
 **Status transition rules:**
 | From | Allowed To |
 |------|------------|
-| `draft` | `planned`, `cancelled` |
-| `planned` | `draft`, `registration_open`, `cancelled` |
-| `registration_open` | `planned`, `in_progress`, `cancelled` |
-| `in_progress` | `finished`, `cancelled` |
+| `draft` | `planned` (requires ≥1 competition), `cancelled` |
+| `planned` | `draft`, `in_progress`, `cancelled` |
+| `in_progress` | `finished` (cascades to competitions), `cancelled` |
 | `finished` | — (terminal) |
 | `cancelled` | — (terminal) |
+
+**Additional transition conditions:**
+
+| Transition | Condition |
+|------------|-----------|
+| → `in_progress` | Current date must be ≥ `event.start_date` |
+| → `finished` | All competitions must have status `finished` or `cancelled`, **OR** current date > `event.end_date` |
+
+**Single-format event:** Changing event status auto-syncs the child competition status (see "Single vs Multi-Stage Events" above). The organizer manages status solely through the event endpoint.
+
+**Multi-stage event:** Competitions are managed independently. The `→ finished` condition ensures all competitions are wrapped up before the event can finish (unless end date has passed).
+
+**Cascade on FINISHED:** When event transitions to `finished`, all child competitions auto-transition: `in_progress` → `finished`, others (`planned`/`registration_open`/`registration_closed`) → `cancelled`.
 
 **Response:** `200 OK` (updated event object)
 
@@ -258,7 +307,37 @@ draft ──┐
 - `400` - Cannot delete event in progress
 - `403` - Only chief organizer can delete
 
-## 6.6 List Team Members
+## 6.6 Upload Event Logo
+
+**Endpoint:** `POST /api/events/{event_id}/logo`
+
+**Authorization:** Organizer (chief or deputy) or Secretary (chief)
+
+**Request:** `multipart/form-data` with `file` field
+
+**Constraints:**
+- File type: JPEG, PNG, or WebP
+- Max file size: 5MB
+
+**Flow:**
+1. Validate file type and size
+2. Upload to MinIO (`event-logos` bucket) as `{event_id}/logo.{ext}`
+3. Save URL to `Event.logo`
+4. Return logo URL
+
+**Response:** `200 OK`
+```json
+{
+  "logo": "http://minio:9000/event-logos/1/logo.jpg"
+}
+```
+
+**Errors:**
+- `400` - Invalid file type or file too large
+- `403` - Only organizer or chief secretary can upload logo
+- `404` - Event not found
+
+## 6.7 List Team Members
 
 **Endpoint:** `GET /api/events/{event_id}/team`
 
@@ -306,7 +385,7 @@ draft ──┐
 }
 ```
 
-## 6.7 Add Team Member
+## 6.8 Add Team Member
 
 **Endpoint:** `POST /api/events/{event_id}/team`
 
@@ -346,7 +425,7 @@ draft ──┐
 - `400` - User is already a team member
 - `400` - Invalid role (participant/spectator not allowed here)
 
-## 6.8 Update Team Member
+## 6.9 Update Team Member
 
 **Endpoint:** `PATCH /api/events/{event_id}/team/{user_id}`
 
@@ -369,7 +448,7 @@ draft ──┐
 
 **Response:** `200 OK` (updated team member object)
 
-## 6.9 Remove Team Member
+## 6.10 Remove Team Member
 
 **Endpoint:** `DELETE /api/events/{event_id}/team/{user_id}`
 
@@ -388,7 +467,7 @@ draft ──┐
 
 **Response:** `204 No Content`
 
-## 6.10 Transfer Organizer Role
+## 6.11 Transfer Organizer Role
 
 **Endpoint:** `POST /api/events/{event_id}/transfer-ownership`
 

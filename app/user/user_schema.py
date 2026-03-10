@@ -158,6 +158,23 @@ class CreatorBrief(BaseModel):
     model_config = {'from_attributes': True}
 
 
+class GhostMatchCompetitionInfo(BaseModel):
+    competition_id: int
+    competition_name: str
+    has_result: bool
+
+
+class GhostMatchEventInfo(BaseModel):
+    event_id: int
+    event_name: str
+    competitions: list[GhostMatchCompetitionInfo]
+
+
+class GhostMatchClubInfo(BaseModel):
+    club_id: int
+    club_name: str
+
+
 class GhostMatchItem(BaseModel):
     user_id: int
     username_display: str
@@ -167,6 +184,8 @@ class GhostMatchItem(BaseModel):
     created_by: CreatorBrief | None = None
     competitions_count: int = 0
     results_summary: str | None = None
+    events: list[GhostMatchEventInfo] = []
+    clubs: list[GhostMatchClubInfo] = []
 
     model_config = {'from_attributes': True}
 
@@ -177,3 +196,14 @@ class GhostMatchResponse(BaseModel):
 
 class AvatarResponse(BaseModel):
     logo: str
+
+
+class AvatarItem(BaseModel):
+    object_name: str
+    url: str
+    last_modified: str
+    size: int
+
+
+class AvatarListResponse(BaseModel):
+    avatars: list[AvatarItem]

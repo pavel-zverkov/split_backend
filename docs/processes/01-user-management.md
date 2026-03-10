@@ -10,6 +10,9 @@
 | 1.6 | `/api/users/me` | GET | Get current user profile |
 | 1.7 | `/api/users/me` | PATCH | Update profile |
 | 1.8 | `/api/users/me/avatar` | POST | Upload avatar |
+| 1.8b | `/api/users/me/avatars` | GET | List all avatars |
+| 1.8c | `/api/users/me/avatars/{object_name}/activate` | POST | Set avatar as active |
+| 1.8d | `/api/users/me/avatars/{object_name}` | DELETE | Delete avatar |
 | 1.9 | `/api/users/{user_id}` | GET | Get public profile |
 | 1.10 | `/api/users` | GET | Search users |
 | 1.11 | `/api/users/ghost` | POST | Create ghost user |
@@ -229,18 +232,98 @@
 file: <binary image>
 ```
 
+**Accepted types:** `image/jpeg`, `image/png`, `image/webp` — max 5 MB
+
 **Flow:**
-1. Validate image (type, size < 5MB)
-2. Resize/optimize
-3. Upload to MinIO: `avatars/{user_id}.jpg`
-4. Update user.logo
+1. Validate type and size
+2. Upload to MinIO as `avatars/{user_id}/{uuid}.{ext}` (does not overwrite existing avatars)
+3. Update `user.logo` to the new URL
 
 **Response:** `200 OK`
 ```json
 {
-  "logo": "https://minio.../avatars/1.jpg"
+  "logo": "http://minio:9000/avatars/1/3f2a1b4c.jpg"
 }
 ```
+
+## 1.8b List Avatars
+
+**Endpoint:** `GET /api/users/me/avatars`
+
+**Authorization:** Bearer token
+
+**Description:** Returns all avatars uploaded by the user, sorted by `last_modified` descending. The first item is the currently active avatar.
+
+**Response:** `200 OK`
+```json
+{
+  "avatars": [
+    {
+      "object_name": "1/3f2a1b4c.jpg",
+      "url": "http://minio:9000/avatars/1/3f2a1b4c.jpg",
+      "last_modified": "2024-06-15T14:30:00+00:00",
+      "size": 102400
+    },
+    {
+      "object_name": "1/a1b2c3d4.png",
+      "url": "http://minio:9000/avatars/1/a1b2c3d4.png",
+      "last_modified": "2024-01-10T09:00:00+00:00",
+      "size": 87654
+    }
+  ]
+}
+```
+
+## 1.8c Activate Avatar
+
+**Endpoint:** `POST /api/users/me/avatars/{object_name}/activate`
+
+**Authorization:** Bearer token
+
+**Description:** Makes an existing (older) avatar the active one. Performs a server-side copy-to-self in MinIO to bump `last_modified` to now. Updates `user.logo` to this avatar's URL.
+
+**Flow:**
+1. Verify `object_name` belongs to the current user (prefix check)
+2. Server-side copy object to itself — MinIO updates `last_modified` to now
+3. Update `user.logo`
+
+**Response:** `200 OK`
+```json
+{
+  "logo": "http://minio:9000/avatars/1/a1b2c3d4.png"
+}
+```
+
+**Errors:**
+- `403` - Object does not belong to current user
+
+## 1.8d Delete Avatar
+
+**Endpoint:** `DELETE /api/users/me/avatars/{object_name}`
+
+**Authorization:** Bearer token
+
+**Flow:**
+1. Verify `object_name` belongs to the current user
+2. Delete the object from MinIO
+3. If it was the active avatar (`user.logo` contains this object): promote the next most recent remaining avatar, or set `user.logo = null` if none remain
+
+**Response:** `204 No Content`
+
+**Errors:**
+- `403` - Object does not belong to current user
+
+---
+
+### Avatar Storage Convention
+
+| Property | Value |
+|----------|-------|
+| MinIO bucket | `avatars` (public-read) |
+| Object path | `{user_id}/{uuid}.{ext}` |
+| Active avatar | Object with the most recent `last_modified` |
+| Activate old avatar | Server-side copy-to-self updates `last_modified` to now |
+| `user.logo` | Always reflects the currently active avatar URL |
 
 ## 1.9 Get Public Profile
 

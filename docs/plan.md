@@ -191,3 +191,6 @@ A sports service with capabilities for both personal and community purposes.
 | 11 | Result Management | 9 | [11-result-management.md](./processes/11-result-management.md) |
 | 12 | Workout Management | 6 | [12-workout-management.md](./processes/12-workout-management.md) |
 | 13 | Split Management | 4 | [13-split-management.md](./processes/13-split-management.md) |
+| 14 | Event Feed | 1 | [14-event-feed.md](./processes/14-event-feed.md) |
+| 15 | Distance Management | 6 | `POST/GET /api/competitions/{id}/distances`, `GET/PATCH/DELETE /api/distances/{id}`, `PUT /api/distances/{id}/control-points` |
+| 16 | Event Total Results | 9 | `POST/GET /api/events/{id}/total-configs`, `GET/PATCH/DELETE /api/events/{id}/total-configs/{config_id}`, `POST .../recalculate`, `GET .../results[/me][/{result_id}]` |

@@ -108,5 +108,5 @@ FastAPI Router (controller)
 
 Configuration in `.env`:
 - PostgreSQL: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
-- MinIO: `MINIO_HOST`, `MINIO_PORT`, `ACCESS_KEY`, `SECRET_KEY`
+- MinIO: `MINIO_HOST`, `MINIO_PORT`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`
 - `LOG_LEVEL` controls loguru output

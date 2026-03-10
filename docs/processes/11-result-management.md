@@ -11,6 +11,7 @@
 | 11.7 | `/api/competitions/{competition_id}/results/recalculate` | POST | Recalculate positions |
 | 11.8 | `/api/competitions/{competition_id}/results/import` | POST | Batch import results |
 | 11.9 | `/api/results/{result_id}/link-workout` | PATCH | Link workout to result |
+| 11.10 | `/api/competitions/{competition_id}/splits` | GET | Get splits for all athletes |
 
 ## Result Concept
 
@@ -52,13 +53,13 @@ This separation allows:
 {
   "user_id": 5,
   "class": "M21",
-  "time_total": 3845,
+  "time_total": 3845000,
   "status": "ok",
   "splits": [
-    {"control_point": "31", "cumulative_time": 245},
-    {"control_point": "45", "cumulative_time": 512},
-    {"control_point": "78", "cumulative_time": 890},
-    {"control_point": "finish", "cumulative_time": 3845}
+    {"control_point": "31", "cumulative_time": 245000},
+    {"control_point": "45", "cumulative_time": 512000},
+    {"control_point": "78", "cumulative_time": 890000},
+    {"control_point": "finish", "cumulative_time": 3845000}
   ]
 }
 ```
@@ -66,12 +67,17 @@ This separation allows:
 **Flow:**
 1. Verify user has CompetitionRegistration for this competition
 2. Verify no existing Result for this user/competition
-3. Validate class is in `competition.class_list`
-4. Validate splits control_points match `competition.control_points_list`
-5. Calculate `split_time` for each split (current - previous cumulative)
-6. Create Result record
-7. Create ResultSplit records
-8. Recalculate positions for the class
+3. Validate start time readiness based on `start_format`:
+   - `separated_start` — athlete's `registration.start_time` must be set
+   - `mass_start` — `competition.start_time` must be set
+   - `free` — no restriction
+4. Validate class is in `competition.class_list`
+5. Validate splits control_points match distance control points (if distance defined)
+6. Calculate `split_time` for each split (current - previous cumulative)
+7. If `time_total > distance.control_time` → force `status = dsq`
+8. Create Result record
+9. Create ResultSplit records
+10. Recalculate positions for the class
 
 **Response:** `201 Created`
 ```json
@@ -79,18 +85,19 @@ This separation allows:
   "id": 1,
   "user_id": 5,
   "competition_id": 1,
+  "distance_id": 2,
   "workout_id": null,
   "class": "M21",
   "position": 3,
   "position_overall": 5,
-  "time_total": 3845,
-  "time_behind_leader": 120,
+  "time_total": 3845000,
+  "time_behind_leader": 120000,
   "status": "ok",
   "splits": [
-    {"control_point": "31", "sequence": 1, "cumulative_time": 245, "split_time": 245},
-    {"control_point": "45", "sequence": 2, "cumulative_time": 512, "split_time": 267},
-    {"control_point": "78", "sequence": 3, "cumulative_time": 890, "split_time": 378},
-    {"control_point": "finish", "sequence": 4, "cumulative_time": 3845, "split_time": 2955}
+    {"control_point": "31", "sequence": 1, "cumulative_time": 245000, "split_time": 245000},
+    {"control_point": "45", "sequence": 2, "cumulative_time": 512000, "split_time": 267000},
+    {"control_point": "78", "sequence": 3, "cumulative_time": 890000, "split_time": 378000},
+    {"control_point": "finish", "sequence": 4, "cumulative_time": 3845000, "split_time": 2955000}
   ],
   "created_at": "2024-06-15T14:30:00Z"
 }
@@ -99,9 +106,13 @@ This separation allows:
 **Errors:**
 - `400` - User not registered for this competition
 - `400` - Result already exists for this user
+- `400` - Cannot create result: athlete has no start time assigned (`separated_start`)
+- `400` - Cannot create result: competition start time is not set (`mass_start`)
 - `400` - Invalid class
-- `400` - Invalid control points (don't match competition)
+- `400` - Invalid control points (don't match distance)
 - `403` - Insufficient permissions
+
+**Note:** If `time_total` exceeds `distance.control_time`, the result is automatically assigned `status = dsq` regardless of the provided status.
 
 ## 11.2 List Results (Leaderboard)
 
@@ -111,16 +122,9 @@ This separation allows:
 
 **Query params:**
 - `class` — filter by class (e.g., `M21`)
+- `distance_id` — filter by distance
 - `status` — filter by status (`ok`, `dsq`, `dns`, `dnf`)
-- `club_id` — filter by club
-- `gender` — filter by gender
-- `sort_by` — `position` (default), `time_total`, `name`
-- `order` — `asc` (default), `desc`
 - `limit`, `offset` — pagination
-
-**Priority logic (no class param):**
-1. If user authenticated → user's class first, then others
-2. If not authenticated → all classes sorted by position
 
 **Response:** `200 OK`
 ```json
@@ -128,8 +132,7 @@ This separation allows:
   "competition": {
     "id": 1,
     "name": "Day 1 - Long Distance",
-    "date": "2024-06-15",
-    "control_points_list": ["31", "45", "78", "finish"]
+    "date": "2024-06-15"
   },
   "results": [
     {
@@ -138,13 +141,17 @@ This separation allows:
         "id": 5,
         "username_display": "ivan_petrov",
         "first_name": "Ivan",
-        "last_name": "P.",
+        "last_name": "Petrov",
         "club": {"id": 1, "name": "Moscow Orienteers"}
       },
+      "distance_id": 2,
+      "distance_name": "Long",
       "class": "M21",
-      "position": 1,
-      "time_total": 3725,
+      "position_in_class": 1,
+      "position_in_distance": 1,
+      "time_total": 3725000,
       "time_behind_leader": 0,
+      "time_behind_distance_leader": 0,
       "status": "ok",
       "has_splits": true
     },
@@ -154,26 +161,42 @@ This separation allows:
         "id": 8,
         "username_display": "petr_sidorov",
         "first_name": "Petr",
-        "last_name": "S.",
+        "last_name": "Sidorov",
         "club": null
       },
+      "distance_id": 2,
+      "distance_name": "Long",
       "class": "M21",
-      "position": 2,
-      "time_total": 3800,
-      "time_behind_leader": 75,
+      "position_in_class": 2,
+      "position_in_distance": 3,
+      "time_total": 3800000,
+      "time_behind_leader": 75000,
+      "time_behind_distance_leader": 90000,
       "status": "ok",
       "has_splits": true
     }
   ],
   "classes": [
-    {"class": "M21", "count": 25, "leader_time": 3725},
-    {"class": "W21", "count": 18, "leader_time": 4120}
+    {"class": "M21", "count": 25, "leader_time": 3725000},
+    {"class": "W21", "count": 18, "leader_time": 4120000}
+  ],
+  "distances": [
+    {"distance_id": 2, "distance_name": "Long", "count": 43, "leader_time": 3725000},
+    {"distance_id": 3, "distance_name": "Short", "count": 42, "leader_time": 2810000}
   ],
   "total": 85,
   "limit": 20,
   "offset": 0
 }
 ```
+
+**Position and time fields in list items:**
+| Field | Description |
+|-------|-------------|
+| `position_in_class` | Rank among athletes in the same class |
+| `position_in_distance` | Rank among all athletes on the same distance |
+| `time_behind_leader` | Milliseconds behind the class leader (`status=ok` only) |
+| `time_behind_distance_leader` | Milliseconds behind the fastest athlete on the distance (`status=ok` only) |
 
 ## 11.3 Get Result with Splits
 
@@ -195,54 +218,63 @@ This separation allows:
   "competition": {
     "id": 1,
     "name": "Day 1 - Long Distance",
-    "control_points_list": ["31", "45", "78", "finish"]
+    "date": "2024-06-15"
   },
   "workout_id": 123,
   "class": "M21",
   "position": 1,
   "position_overall": 1,
-  "time_total": 3725,
+  "time_total": 3725000,
   "time_behind_leader": 0,
   "status": "ok",
   "splits": [
     {
       "control_point": "31",
       "sequence": 1,
-      "cumulative_time": 240,
-      "split_time": 240,
+      "cumulative_time": 240000,
+      "split_time": 240000,
       "position": 2,
-      "time_behind_best": 15
-    },
-    {
-      "control_point": "45",
-      "sequence": 2,
-      "cumulative_time": 500,
-      "split_time": 260,
-      "position": 1,
-      "time_behind_best": 0
-    },
-    {
-      "control_point": "78",
-      "sequence": 3,
-      "cumulative_time": 870,
-      "split_time": 370,
-      "position": 1,
-      "time_behind_best": 0
+      "time_behind_best": 15000,
+      "position_in_distance": 3,
+      "time_behind_best_in_distance": 22000,
+      "cumulative_position": 2,
+      "cumulative_time_behind_best": 15000,
+      "cumulative_position_in_distance": 3,
+      "cumulative_time_behind_best_in_distance": 22000
     },
     {
       "control_point": "finish",
       "sequence": 4,
-      "cumulative_time": 3725,
-      "split_time": 2855,
+      "cumulative_time": 3725000,
+      "split_time": 2855000,
       "position": 1,
-      "time_behind_best": 0
+      "time_behind_best": 0,
+      "position_in_distance": 1,
+      "time_behind_best_in_distance": 0,
+      "cumulative_position": 1,
+      "cumulative_time_behind_best": 0,
+      "cumulative_position_in_distance": 1,
+      "cumulative_time_behind_best_in_distance": 0
     }
   ],
   "created_at": "2024-06-15T14:30:00Z"
 }
 ```
 
-**Note:** `position` and `time_behind_best` for each split are calculated dynamically by comparing with other results in the same class.
+**Split position fields:**
+
+| Field | Time basis | Scope | Description |
+|-------|-----------|-------|-------------|
+| `position` | `split_time` | Class | Rank for this leg among athletes in the same class |
+| `time_behind_best` | `split_time` | Class | ms behind the fastest leg in class (0 = best) |
+| `position_in_distance` | `split_time` | Distance | Rank for this leg among all athletes on the same distance |
+| `time_behind_best_in_distance` | `split_time` | Distance | ms behind the fastest leg in distance (0 = best) |
+| `cumulative_position` | `cumulative_time` | Class | Rank at this control point (elapsed time from start) in class |
+| `cumulative_time_behind_best` | `cumulative_time` | Class | ms behind the leader at this control point in class |
+| `cumulative_position_in_distance` | `cumulative_time` | Distance | Rank at this control point across all athletes on the distance |
+| `cumulative_time_behind_best_in_distance` | `cumulative_time` | Distance | ms behind the distance leader at this control point |
+
+All fields are `null` for non-OK results or when no comparison data exists. All are calculated dynamically on every request, not stored.
 
 ## 11.4 Get My Result
 
@@ -263,14 +295,14 @@ This separation allows:
 **Request:**
 ```json
 {
-  "time_total": 3850,
+  "time_total": 3850000,
   "status": "ok",
   "class": "M35",
   "splits": [
-    {"control_point": "31", "cumulative_time": 250},
-    {"control_point": "45", "cumulative_time": 520},
-    {"control_point": "78", "cumulative_time": 900},
-    {"control_point": "finish", "cumulative_time": 3850}
+    {"control_point": "31", "cumulative_time": 250000},
+    {"control_point": "45", "cumulative_time": 520000},
+    {"control_point": "78", "cumulative_time": 900000},
+    {"control_point": "finish", "cumulative_time": 3850000}
   ]
 }
 ```
@@ -280,8 +312,9 @@ This separation allows:
 **Flow:**
 1. Validate changes
 2. If splits provided, replace all ResultSplit records
-3. Update Result
-4. If `time_total`, `status`, or `class` changed → recalculate positions
+3. If `time_total` provided and exceeds `distance.control_time` → force `status = dsq`
+4. Update Result
+5. If `time_total`, `status`, or `class` changed → recalculate positions
 
 **Response:** `200 OK` (updated result object)
 
@@ -313,45 +346,13 @@ This separation allows:
 
 **Description:** Manually trigger position recalculation for all results.
 
-**Flow:**
-```sql
--- For each class: calculate position
-UPDATE results SET position = subq.pos
-FROM (
-  SELECT id, ROW_NUMBER() OVER (
-    PARTITION BY class
-    ORDER BY
-      CASE WHEN status = 'ok' THEN 0 ELSE 1 END,
-      time_total
-  ) as pos
-  FROM results
-  WHERE competition_id = ?
-) subq
-WHERE results.id = subq.id;
+**Recalculation logic:**
 
--- Calculate position_overall (all classes combined)
-UPDATE results SET position_overall = subq.pos
-FROM (
-  SELECT id, ROW_NUMBER() OVER (
-    ORDER BY
-      CASE WHEN status = 'ok' THEN 0 ELSE 1 END,
-      time_total
-  ) as pos
-  FROM results
-  WHERE competition_id = ?
-) subq
-WHERE results.id = subq.id;
-
--- Calculate time_behind_leader per class
-UPDATE results r SET time_behind_leader = r.time_total - leader.time_total
-FROM (
-  SELECT class, MIN(time_total) as time_total
-  FROM results
-  WHERE competition_id = ? AND status = 'ok'
-  GROUP BY class
-) leader
-WHERE r.class = leader.class AND r.competition_id = ?;
-```
+1. **`position`** — rank within class (`ok` first, then by `time_total` asc)
+2. **`position_in_distance`** — rank within distance (`ok` first, then by `time_total` asc)
+3. **`position_overall`** — rank across all classes/distances combined
+4. **`time_behind_leader`** — difference from class leader's time (`status=ok` only)
+5. **`time_behind_distance_leader`** — difference from the fastest athlete on the same distance (`status=ok` only)
 
 **Response:** `200 OK`
 ```json
@@ -377,10 +378,22 @@ format: "csv"
 **CSV format:**
 ```csv
 bib_number,time_total,status,split_31,split_45,split_78,split_finish
-101,3725,ok,240,500,870,3725
-102,3800,ok,225,490,860,3800
+101,3725000,ok,240000,500000,870000,3725000
+102,3800000,ok,225000,490000,860000,3800000
 103,,dns,,,
 ```
+
+**Time input formats accepted by the importer:**
+
+The CSV importer accepts times in multiple formats for human convenience — all are stored as milliseconds:
+
+| Input | Parsed as | Example |
+|-------|-----------|---------|
+| Raw integer | Milliseconds directly | `3725000` → 3725000 ms |
+| `MM:SS` | Minutes and seconds | `62:05` → 3725000 ms |
+| `MM:SS.s` | With sub-second fraction | `62:05.3` → 3725300 ms |
+| `HH:MM:SS` | Hours, minutes, seconds | `1:02:05` → 3725000 ms |
+| `HH:MM:SS.s` | With sub-second fraction | `1:02:05.3` → 3725300 ms |
 
 **Flow:**
 1. Parse file
@@ -440,6 +453,106 @@ bib_number,time_total,status,split_31,split_45,split_78,split_finish
 
 **Note:** Linking workout does NOT copy WorkoutSplits to ResultSplits. They remain separate for independent analysis.
 
+## 11.10 Get All Athletes' Splits
+
+**Endpoint:** `GET /api/competitions/{competition_id}/splits`
+
+**Authorization:** Public
+
+**Query params:**
+- `class` — filter by class (e.g., `M21`)
+- `distance_id` — filter by distance
+
+**Description:** Returns splits for all athletes in one request. Each athlete entry contains both a `splits` list (athlete-oriented) and a `splits_map` dict (control-point-oriented) for flexible frontend rendering.
+
+**Response:** `200 OK`
+```json
+{
+  "competition": {
+    "id": 1,
+    "name": "Day 1 - Long Distance",
+    "date": "2024-06-15"
+  },
+  "control_points": ["start", "31", "45", "78", "finish"],
+  "athletes": [
+    {
+      "result_id": 1,
+      "user": {
+        "id": 5,
+        "username_display": "ivan_petrov",
+        "first_name": "Ivan",
+        "last_name": "Petrov",
+        "club": {"id": 1, "name": "Moscow Orienteers"}
+      },
+      "bib_number": "101",
+      "class": "M21",
+      "distance_id": 2,
+      "time_total": 3725000,
+      "status": "ok",
+      "position": 1,
+      "splits": [
+        {
+          "control_point": "31",
+          "sequence": 1,
+          "split_time": 240000,
+          "cumulative_time": 240000,
+          "position": 2,
+          "time_behind_best": 15000,
+          "cumulative_position": 2,
+          "cumulative_time_behind_best": 15000,
+          "position_in_distance": 3,
+          "time_behind_best_in_distance": 22000,
+          "cumulative_position_in_distance": 3,
+          "cumulative_time_behind_best_in_distance": 22000
+        }
+      ],
+      "splits_map": {
+        "31": {
+          "control_point": "31",
+          "sequence": 1,
+          "split_time": 240000,
+          "cumulative_time": 240000,
+          "position": 2,
+          "time_behind_best": 15000,
+          "cumulative_position": 2,
+          "cumulative_time_behind_best": 15000,
+          "position_in_distance": 3,
+          "time_behind_best_in_distance": 22000,
+          "cumulative_position_in_distance": 3,
+          "cumulative_time_behind_best_in_distance": 22000
+        }
+      }
+    }
+  ],
+  "total": 42
+}
+```
+
+**Split position fields:**
+
+| Field | Time basis | Scope | Description |
+|-------|-----------|-------|-------------|
+| `position` | `split_time` | Class | Leg rank among athletes in the same class |
+| `time_behind_best` | `split_time` | Class | ms behind the fastest leg in class |
+| `cumulative_position` | `cumulative_time` | Class | Rank at this control point in class |
+| `cumulative_time_behind_best` | `cumulative_time` | Class | ms behind the leader at this control point in class |
+| `position_in_distance` | `split_time` | Distance | Leg rank among all athletes on the same distance |
+| `time_behind_best_in_distance` | `split_time` | Distance | ms behind the fastest leg in distance |
+| `cumulative_position_in_distance` | `cumulative_time` | Distance | Rank at this control point across the distance |
+| `cumulative_time_behind_best_in_distance` | `cumulative_time` | Distance | ms behind the distance leader at this control point |
+
+All position fields are `null` for non-OK results or when the athlete has no distance assigned. Athletes are ordered by `position` (class rank, nulls last).
+
+**Implementation notes:**
+- Loads all splits in **2 queries** (results + splits bulk `IN`) — no N+1
+- Positions computed in-memory grouped by `(class, control_point)`
+- `control_points` is the **ordered union** of all CP codes across all athletes — use this as table column headers
+- `splits_map` keyed by control point code — direct O(1) cell lookup for table rendering
+
+**Typical frontend use cases:**
+- Split analysis table (rows = athletes, columns = control points) — use `control_points` + `splits_map`
+- Athlete detail with split progression — use `splits` list
+
 ---
 
 ## New Entity: ResultSplit
@@ -450,9 +563,58 @@ bib_number,time_total,status,split_31,split_45,split_78,split_finish
 | 2 | `result_id` | int | FK → Result | |
 | 3 | `control_point` | string | yes | Must match competition.control_points_list |
 | 4 | `sequence` | int | yes | Order (1, 2, 3...) |
-| 5 | `cumulative_time` | int | yes | Seconds from start |
-| 6 | `split_time` | int | yes | Seconds for this leg |
+| 5 | `cumulative_time` | int | yes | Milliseconds from start |
+| 6 | `split_time` | int | yes | Milliseconds for this leg |
 
-*Note: `position` and `time_behind_best` are calculated dynamically, not stored.*
+*Note: `position`, `time_behind_best`, `position_in_distance`, and `time_behind_best_in_distance` are calculated dynamically on every request, not stored.*
+
+---
+
+## Time Units
+
+**All time fields use milliseconds (integer).**
+
+| Field | Unit | Example |
+|-------|------|---------|
+| `time_total` | ms | `3725000` = 1h 2m 5s |
+| `time_behind_leader` | ms | `75000` = 1m 15s |
+| `time_behind_distance_leader` | ms | `90000` = 1m 30s |
+| `cumulative_time` | ms | `240000` = 4m 0s |
+| `split_time` | ms | `267000` = 4m 27s |
+| `control_time` (distance limit) | ms | `5400000` = 90m 0s |
+
+### Frontend: displaying time
+
+```js
+// ms → "HH:MM:SS" or "MM:SS"
+function formatTime(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+// ms → "+MM:SS" (time behind display)
+function formatTimeBehind(ms) {
+  if (!ms) return '';
+  return '+' + formatTime(ms);
+}
+```
+
+### Frontend: sending time
+
+The API expects raw milliseconds. Convert before sending:
+
+```js
+// "MM:SS" or "HH:MM:SS" → ms
+function parseTimeToMs(str) {
+  const parts = str.trim().split(':').map(Number);
+  if (parts.length === 2) return (parts[0] * 60 + parts[1]) * 1000;
+  if (parts.length === 3) return (parts[0] * 3600 + parts[1] * 60 + parts[2]) * 1000;
+  throw new Error('Invalid time format');
+}
+```
 
 ---

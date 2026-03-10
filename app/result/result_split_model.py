@@ -14,6 +14,7 @@ class ResultSplit(Base):
     id = Column(Integer, primary_key=True, index=True)
     result_id = Column(Integer, ForeignKey('results.id'), nullable=False)
     control_point = Column(String, nullable=False)
+    control_point_id = Column(Integer, ForeignKey('control_points.id'), nullable=True)
     sequence = Column(Integer, nullable=False)
     cumulative_time = Column(Integer, nullable=False)
     split_time = Column(Integer, nullable=False)

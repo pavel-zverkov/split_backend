@@ -170,8 +170,8 @@ Configure in `packages/backend/.env`:
 | `POSTGRES_PASSWORD` | Database password | split_pg_pswd |
 | `MINIO_HOST` | MinIO host | localhost |
 | `MINIO_PORT` | MinIO API port | 9000 |
-| `ACCESS_KEY` | MinIO access key | split_minio_user |
-| `SECRET_KEY` | MinIO secret key | split_minio_pswd |
+| `MINIO_ROOT_USER` | MinIO access key | split_minio_user |
+| `MINIO_ROOT_PASSWORD` | MinIO secret key | split_minio_pswd |
 | `LOG_LEVEL` | Logging level | DEBUG |
 
 ## API Documentation

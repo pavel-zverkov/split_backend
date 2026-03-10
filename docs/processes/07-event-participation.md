@@ -4,6 +4,8 @@
 |---|----------|--------|-------------|
 | 7.1 | `/api/events/{event_id}/join` | POST | Join event (athlete or team) |
 | 7.1b | `/api/events/{event_id}/participants` | POST | Add participant (organizer) |
+| 7.1c | `/api/events/{event_id}/participants/batch` | POST | Batch add participants |
+| 7.1d | `/api/events/{event_id}/participants/from-club` | POST | Add participants from club |
 | 7.2 | `/api/events/{event_id}/participants` | GET | List participants (athletes) |
 | 7.3 | `/api/events/{event_id}/requests` | GET | List join requests |
 | 7.4 | `/api/events/{event_id}/requests/{participation_id}` | PATCH | Approve/reject request |
@@ -139,15 +141,15 @@ flowchart TD
 - `400` - Already participating (with `approved` or `pending` status)
 - `400` - Role not open for recruitment (team roles)
 - `400` - Invalid invite token
-- `400` - Event status does not allow registration (must be `registration_open` or `in_progress`)
+- `400` - Event status does not allow registration (must be `planned` or `in_progress`)
 - `400` - All selected competitions have already started
 
 **Note:** Users with `rejected` status can re-apply by sending a new request.
 
 **Registration rules:**
-- Event must be in `registration_open` or `in_progress` status
-- Can only register for competitions with status `planned` (not yet started)
-- Can use `competition_ids: "all"` to register for all upcoming competitions
+- Event must be in `planned` or `in_progress` status
+- Competition-level registration is controlled by competition status (`registration_open` allows self-registration, `registration_closed` allows only team-member registration)
+- Can use `competition_ids: "all"` to register for all competitions with open registration
 
 ## 7.1b Add Participant (Organizer)
 
@@ -192,6 +194,81 @@ flowchart TD
 - `400` - User already participating, or trying to set organizer role
 - `403` - Caller is not organizer
 - `404` - Event or user not found
+
+## 7.1c Batch Add Participants
+
+**Endpoint:** `POST /api/events/{event_id}/participants/batch`
+
+**Authorization:** Organizer (chief or deputy) or Secretary (chief)
+
+**Request:**
+```json
+{
+  "participants": [
+    {
+      "user_id": 10,
+      "role": "participant",
+      "competition_ids": [1, 2]
+    },
+    {
+      "user_id": 11,
+      "role": "participant",
+      "competition_ids": [1]
+    }
+  ]
+}
+```
+
+**Flow:**
+1. For each participant item:
+   - Check user exists → skip with `error` if not
+   - Check no existing participation → skip with `skipped` if exists
+   - Create EventParticipation with `status=approved`
+   - If `competition_ids` provided, create CompetitionRegistration for each with `status=registered`
+2. Single commit at the end
+
+**Response:** `200 OK`
+```json
+{
+  "added": 2,
+  "skipped": 0,
+  "results": [
+    {"user_id": 10, "status": "added", "detail": null},
+    {"user_id": 11, "status": "added", "detail": null}
+  ]
+}
+```
+
+## 7.1d Add Participants from Club
+
+**Endpoint:** `POST /api/events/{event_id}/participants/from-club`
+
+**Authorization:** Organizer (chief or deputy) or Secretary (chief) AND club admin (owner or coach)
+
+**Request:**
+```json
+{
+  "club_id": 5,
+  "user_ids": [10, 11, 12],
+  "role": "participant",
+  "competition_ids": [1, 2]
+}
+```
+
+**Flow:**
+1. Verify caller is event organizer/secretary AND club admin
+2. For each selected user:
+   - Verify active club membership → skip with `error` if not a member
+   - Check no existing participation → skip with `skipped` if exists
+   - Create EventParticipation with `status=approved`
+   - If `competition_ids` provided, create CompetitionRegistration for each with `status=registered`
+3. Single commit at the end
+
+**Response:** `200 OK` (same `BatchAddParticipantsResponse`)
+
+**Errors:**
+- `403` - Not an event organizer/secretary
+- `403` - Not a club admin (owner or coach)
 
 ## 7.2 List Participants
 

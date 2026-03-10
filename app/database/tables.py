@@ -7,6 +7,8 @@ from ..competition.competition_model import Competition
 from ..artifact.artifact_model import Artifact
 from ..artifact.orient.maps.orient_map_model import OrientMap
 from ..club.club_model import Club
+from ..competition.distance_model import Distance
+from ..competition.control_point_model import ControlPoint
 from ..result.result_model import Result
 from ..result.result_split_model import ResultSplit
 
@@ -17,6 +19,8 @@ from ..user.user_qualification_model import UserQualification
 from ..club.club_membership_model import ClubMembership
 from ..event.event_invite_model import EventInvite
 from ..event.event_participation_model import EventParticipation
+from ..event.total_config_model import EventTotalConfig
+from ..event.total_result_model import EventTotalResult
 from ..competition.competition_team_model import CompetitionTeam
 from ..competition.competition_registration_model import CompetitionRegistration
 
@@ -30,6 +34,8 @@ __all__ = [
     'WorkoutSplit',
     'Event',
     'Competition',
+    'Distance',
+    'ControlPoint',
     'Artifact',
     'OrientMap',
     'Club',
@@ -42,6 +48,8 @@ __all__ = [
     'ClubMembership',
     'EventInvite',
     'EventParticipation',
+    'EventTotalConfig',
+    'EventTotalResult',
     'CompetitionTeam',
     'CompetitionRegistration',
     # Child

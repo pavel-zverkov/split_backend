@@ -14,6 +14,7 @@ from ..enums.participation_status import ParticipationStatus
 from ..enums.privacy import Privacy
 from . import event_crud
 from .event_invite_model import EventInvite
+from .event_participation_model import EventParticipation
 from .event_schema import (
     JoinEventRequest,
     ParticipationResponse,
@@ -34,8 +35,13 @@ from .event_schema import (
     InvitesListResponse,
     CompetitionBrief,
     AddParticipantRequest,
+    BatchAddParticipantsRequest,
+    BatchAddParticipantsResponse,
+    BatchParticipantResultItem,
+    ClubParticipantsRequest,
 )
 from ..user import user_crud
+from ..club import club_crud
 
 participation_router = APIRouter(prefix='/api/events', tags=['event-participation'])
 
@@ -55,7 +61,7 @@ def get_event_or_404(db: Session, event_id: int):
 
 def check_registration_allowed(event):
     """Check if event allows registration."""
-    if event.status not in [EventStatus.REGISTRATION_OPEN, EventStatus.IN_PROGRESS]:
+    if event.status not in [EventStatus.PLANNED, EventStatus.IN_PROGRESS]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Event is not open for registration'
@@ -240,6 +246,142 @@ async def add_participant(
     )
 
 
+# ===== 7.1c Batch Add Participants =====
+
+@participation_router.post('/{event_id}/participants/batch', response_model=BatchAddParticipantsResponse)
+async def batch_add_participants(
+    event_id: int,
+    data: BatchAddParticipantsRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Batch add participants to event with optional competition registration."""
+    event = get_event_or_404(db, event_id)
+
+    if not event_crud.can_update_event(db, current_user.id, event_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Only organizer or chief secretary can add participants'
+        )
+
+    results = _process_batch_participants(db, event_id, data.participants)
+
+    return _build_batch_response(results)
+
+
+# ===== 7.1d Add Participants from Club =====
+
+@participation_router.post('/{event_id}/participants/from-club', response_model=BatchAddParticipantsResponse)
+async def add_participants_from_club(
+    event_id: int,
+    data: ClubParticipantsRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Add selected club members as event participants. Requires event organizer + club admin."""
+    event = get_event_or_404(db, event_id)
+
+    if not event_crud.can_update_event(db, current_user.id, event_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Only organizer or chief secretary can add participants'
+        )
+
+    if not club_crud.is_club_admin(db, current_user.id, data.club_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Only club owner or coach can add club members'
+        )
+
+    # Validate selected users are active club members
+    from ..enums.membership_status import MembershipStatus
+    results = []
+    for user_id in data.user_ids:
+        membership = club_crud.get_membership(db, user_id, data.club_id)
+        if not membership or membership.status != MembershipStatus.ACTIVE:
+            results.append(BatchParticipantResultItem(
+                user_id=user_id, status='error', detail='Not an active club member'
+            ))
+            continue
+
+        result = _add_single_participant(
+            db, event_id, user_id, data.role, None, data.competition_ids
+        )
+        results.append(result)
+
+    db.commit()
+    return _build_batch_response(results)
+
+
+# ===== Batch Helpers =====
+
+def _process_batch_participants(db, event_id, participants):
+    """Process a batch of participant items."""
+    results = []
+    for item in participants:
+        result = _add_single_participant(
+            db, event_id, item.user_id, item.role, item.position, item.competition_ids
+        )
+        results.append(result)
+    db.commit()
+    return results
+
+
+def _add_single_participant(db, event_id, user_id, role, position, competition_ids):
+    """Add a single participant and optionally register for competitions."""
+    user = user_crud.get_user_by_id(db, user_id)
+    if not user or not user.is_active:
+        return BatchParticipantResultItem(
+            user_id=user_id, status='error', detail='User not found'
+        )
+
+    existing = event_crud.get_participation(db, user_id, event_id)
+    if existing:
+        return BatchParticipantResultItem(
+            user_id=user_id, status='skipped', detail='Already participating'
+        )
+
+    participation = EventParticipation(
+        user_id=user_id,
+        event_id=event_id,
+        role=role,
+        position=position,
+        status=ParticipationStatus.APPROVED,
+        joined_at=datetime.now(timezone.utc),
+    )
+    db.add(participation)
+    db.flush()
+
+    # Register for competitions if specified
+    if competition_ids:
+        from ..competition.competition_model import Competition
+        from ..competition.competition_registration_model import CompetitionRegistration
+        from ..enums.registration_status import RegistrationStatus
+        for comp_id in competition_ids:
+            comp = db.query(Competition).filter(
+                Competition.id == comp_id,
+                Competition.event_id == event_id
+            ).first()
+            if comp:
+                reg = CompetitionRegistration(
+                    user_id=user_id,
+                    competition_id=comp_id,
+                    status=RegistrationStatus.REGISTERED,
+                )
+                db.add(reg)
+
+    return BatchParticipantResultItem(user_id=user_id, status='added')
+
+
+def _build_batch_response(results):
+    """Build batch response from results list."""
+    added = sum(1 for r in results if r.status == 'added')
+    skipped = sum(1 for r in results if r.status in ('skipped', 'error'))
+    return BatchAddParticipantsResponse(
+        added=added, skipped=skipped, results=results
+    )
+
+
 # ===== 7.2 List Participants =====
 
 @participation_router.get('/{event_id}/participants', response_model=ParticipantsListResponse)
@@ -278,7 +420,7 @@ async def list_participants(
                 id=p.user.id,
                 username_display=p.user.username_display,
                 first_name=p.user.first_name,
-                last_name=f"{p.user.last_name[0]}." if p.user.last_name else None,
+                last_name=p.user.last_name,
                 logo=p.user.logo,
             ),
             status=p.status,
@@ -328,7 +470,7 @@ async def list_requests(
                 id=r.user.id,
                 username_display=r.user.username_display,
                 first_name=r.user.first_name,
-                last_name=f"{r.user.last_name[0]}." if r.user.last_name else None,
+                last_name=r.user.last_name,
                 logo=r.user.logo,
             ),
             role=r.role,

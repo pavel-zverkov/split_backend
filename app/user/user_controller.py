@@ -19,8 +19,13 @@ from .user_schema import (
     GhostUserResponse,
     GhostMatchResponse,
     GhostMatchItem,
+    GhostMatchEventInfo,
+    GhostMatchCompetitionInfo,
+    GhostMatchClubInfo,
     CreatorBrief,
     AvatarResponse,
+    AvatarItem,
+    AvatarListResponse,
 )
 
 user_router = APIRouter(prefix='/api/users', tags=['users'])
@@ -90,7 +95,7 @@ async def change_password(
 
     if not verify_password(data.current_password, current_user.password_hash):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail='Current password is incorrect'
         )
 
@@ -106,7 +111,6 @@ async def upload_avatar(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Validate file type
     allowed_types = ['image/jpeg', 'image/png', 'image/webp']
     if file.content_type not in allowed_types:
         raise HTTPException(
@@ -114,7 +118,6 @@ async def upload_avatar(
             detail='File must be JPEG, PNG, or WebP image'
         )
 
-    # Validate file size (5MB)
     contents = await file.read()
     if len(contents) > 5 * 1024 * 1024:
         raise HTTPException(
@@ -122,13 +125,68 @@ async def upload_avatar(
             detail='File size must be less than 5MB'
         )
 
-    # TODO: Upload to MinIO and update user.logo
-    # For now, we just return a placeholder
-    logo_url = f'/avatars/{current_user.id}.jpg'
+    from ..database.minio_service import upload_avatar
+    logo_url = upload_avatar(current_user.id, contents, file.content_type)
     current_user.logo = logo_url
     db.commit()
 
     return AvatarResponse(logo=logo_url)
+
+
+@user_router.get('/me/avatars', response_model=AvatarListResponse)
+async def list_avatars(
+    current_user: User = Depends(get_current_user),
+):
+    from ..database.minio_service import list_avatars as minio_list_avatars
+    avatars = minio_list_avatars(current_user.id)
+    return AvatarListResponse(avatars=[
+        AvatarItem(
+            object_name=a['object_name'],
+            url=a['url'],
+            last_modified=a['last_modified'].isoformat(),
+            size=a['size'],
+        )
+        for a in avatars
+    ])
+
+
+@user_router.post('/me/avatars/{object_name:path}/activate', response_model=AvatarResponse)
+async def activate_avatar(
+    object_name: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Ensure the object belongs to this user
+    if not object_name.startswith(f'{current_user.id}/'):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Not your avatar')
+
+    from ..database.minio_service import activate_avatar as minio_activate
+    logo_url = minio_activate(object_name)
+    current_user.logo = logo_url
+    db.commit()
+
+    return AvatarResponse(logo=logo_url)
+
+
+@user_router.delete('/me/avatars/{object_name:path}', status_code=status.HTTP_204_NO_CONTENT)
+async def delete_avatar(
+    object_name: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not object_name.startswith(f'{current_user.id}/'):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Not your avatar')
+
+    from ..database.minio_service import delete_avatar_object, list_avatars as minio_list_avatars
+    delete_avatar_object(object_name)
+
+    # If deleted the active avatar, switch to the next most recent or clear
+    if current_user.logo and object_name in current_user.logo:
+        remaining = minio_list_avatars(current_user.id)
+        current_user.logo = remaining[0]['url'] if remaining else None
+        db.commit()
+
+    return None
 
 
 @user_router.delete('/me', status_code=status.HTTP_204_NO_CONTENT)
@@ -158,7 +216,9 @@ async def delete_current_user(
 
     # Soft or hard delete
     if hard:
-        # TODO: Delete avatar from MinIO
+        # Delete avatar from MinIO
+        from ..database.minio_service import delete_avatar
+        delete_avatar(current_user.id)
         user_crud.hard_delete_user(db, current_user)
     else:
         user_crud.soft_delete_user(db, current_user)
@@ -184,16 +244,11 @@ async def get_public_profile(
     if current_user and current_user.id != user_id:
         follow_status = user_crud.get_follow_status(db, current_user.id, user_id)
 
-    # Truncate last name for privacy (unless follower)
-    last_name = user.last_name
-    if last_name and (not current_user or follow_status is None):
-        last_name = f"{last_name[0]}." if last_name else None
-
     return UserPublicProfile(
         id=user.id,
         username_display=user.username_display,
         first_name=user.first_name,
-        last_name=last_name,
+        last_name=user.last_name,
         logo=user.logo,
         bio=user.bio,
         account_type=user.account_type,
@@ -221,7 +276,7 @@ async def search_users(
                 id=u.id,
                 username_display=u.username_display,
                 first_name=u.first_name,
-                last_name=f"{u.last_name[0]}." if u.last_name else None,
+                last_name=u.last_name,
                 account_type=u.account_type,
             )
             for u in users
@@ -281,9 +336,23 @@ async def find_matching_ghosts(
                     username_display=creator_user.username_display,
                 )
 
-        # TODO: Count competitions and build summary
-        competitions_count = 0
-        results_summary = None
+        competitions_count = user_crud.get_user_competitions_count(db, ghost.id)
+        results_summary = user_crud.get_user_results_summary(db, ghost.id)
+
+        # Get events and clubs for this ghost
+        events_raw = user_crud.get_ghost_events(db, ghost.id)
+        events = [
+            GhostMatchEventInfo(
+                event_id=e['event_id'],
+                event_name=e['event_name'],
+                competitions=[
+                    GhostMatchCompetitionInfo(**c) for c in e['competitions']
+                ],
+            ) for e in events_raw
+        ]
+
+        clubs_raw = user_crud.get_ghost_clubs(db, ghost.id)
+        clubs = [GhostMatchClubInfo(**c) for c in clubs_raw]
 
         result.append(GhostMatchItem(
             user_id=ghost.id,
@@ -294,6 +363,8 @@ async def find_matching_ghosts(
             created_by=creator,
             competitions_count=competitions_count,
             results_summary=results_summary,
+            events=events,
+            clubs=clubs,
         ))
 
     return GhostMatchResponse(matches=result)
