@@ -24,6 +24,7 @@ from .workout.workout_split_controller import split_router
 from .artifact.artifact_controller import artifact_router
 from .result.result_controller import result_router
 from .feed.feed_controller import feed_router
+from .search.search_controller import search_router
 from .club.club_controller import club_router
 from .club.club_membership_controller import club_membership_router
 
@@ -66,6 +67,7 @@ app.include_router(split_comparer_router)
 app.include_router(artifact_router)
 app.include_router(result_router)
 app.include_router(feed_router)
+app.include_router(search_router)
 
 
 @app.get("/")
