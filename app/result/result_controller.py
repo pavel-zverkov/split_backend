@@ -5,14 +5,17 @@ from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
 from ..auth.auth_service import get_current_user, get_current_user_optional
 from ..user.user_model import User
 from ..competition.competition_crud import get_competition
+from ..competition.competition_registration_model import CompetitionRegistration
 from ..competition.registration_crud import get_registration_by_user
 from ..club import club_crud
+from ..club.club_membership_model import ClubMembership
+from ..enums.membership_status import MembershipStatus
 from . import result_crud
 from .result_schema import (
     ResultCreate,
@@ -36,6 +39,8 @@ from .result_schema import (
     BulkSplitEntry,
     AthleteBulkSplits,
     BulkSplitsResponse,
+    AthleteIndexItem,
+    AthleteIndexResponse,
 )
 
 result_router = APIRouter(tags=['results'])
@@ -184,6 +189,22 @@ def build_splits_detail_response(
     return response
 
 
+# ===== Athlete Index =====
+
+@result_router.get('/api/competitions/{competition_id}/athletes', response_model=AthleteIndexResponse)
+async def get_athlete_index(
+    competition_id: int,
+    db: Session = Depends(get_db),
+):
+    """Minimal athlete list for cross-distance search."""
+    get_competition_or_404(db, competition_id)
+    rows = result_crud.get_athlete_index(db, competition_id)
+    return AthleteIndexResponse(
+        athletes=[AthleteIndexItem(**r) for r in rows],
+        total=len(rows),
+    )
+
+
 # ===== Bulk Splits =====
 
 @result_router.get('/api/competitions/{competition_id}/splits', response_model=BulkSplitsResponse)
@@ -200,6 +221,37 @@ async def get_competition_splits(
         db, competition_id, competition_class, distance_id
     )
 
+    # Batch-load clubs and bib numbers to avoid N+1 queries
+    user_ids = [r.user_id for r in results]
+    club_by_user: dict[int, ClubBrief] = {}
+    if user_ids:
+        memberships = (
+            db.query(ClubMembership)
+            .options(joinedload(ClubMembership.club))
+            .filter(
+                ClubMembership.user_id.in_(user_ids),
+                ClubMembership.status == MembershipStatus.ACTIVE,
+            )
+            .all()
+        )
+        for m in memberships:
+            if m.user_id not in club_by_user:
+                club_by_user[m.user_id] = ClubBrief(id=m.club.id, name=m.club.name)
+
+        bib_by_user: dict[int, str | None] = {uid: None for uid in user_ids}
+        registrations = (
+            db.query(CompetitionRegistration)
+            .filter(
+                CompetitionRegistration.user_id.in_(user_ids),
+                CompetitionRegistration.competition_id == competition_id,
+            )
+            .all()
+        )
+        for reg in registrations:
+            bib_by_user[reg.user_id] = reg.bib_number
+    else:
+        bib_by_user = {}
+
     athletes = []
     for result in results:
         result_splits = splits_by_result.get(result.id, [])
@@ -208,7 +260,8 @@ async def get_competition_splits(
         split_entries = []
         split_map = {}
         for split in result_splits:
-            cp_pos = result_positions.get(split.control_point, {})
+            # Key positions by sequence to correctly handle butterfly courses
+            cp_pos = result_positions.get(split.sequence, {})
             entry = BulkSplitEntry(
                 control_point=split.control_point,
                 sequence=split.sequence,
@@ -224,12 +277,22 @@ async def get_competition_splits(
                 cumulative_time_behind_best_in_distance=cp_pos.get('cumulative_time_behind_best_in_distance'),
             )
             split_entries.append(entry)
-            split_map[split.control_point] = entry
+            # Key map by sequence so butterfly visits to the same CP are not overwritten
+            split_map[str(split.sequence)] = entry
+
+        u = result.user
+        user_brief = ResultUserBrief(
+            id=u.id,
+            username_display=u.username_display,
+            first_name=u.first_name,
+            last_name=u.last_name,
+            club=club_by_user.get(u.id),
+        )
 
         athletes.append(AthleteBulkSplits(
             result_id=result.id,
-            user=build_user_brief(db, result.user),
-            bib_number=get_bib_number(db, result.user_id, competition_id),
+            user=user_brief,
+            bib_number=bib_by_user.get(result.user_id),
             competition_class=result.class_,
             distance_id=result.distance_id,
             time_total=result.time_total,
@@ -379,7 +442,7 @@ async def list_results(
     competition_class: str | None = Query(None, alias='class'),
     distance_id: int | None = Query(None),
     result_status: str | None = Query(None, alias='status'),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(607, ge=1, le=1_000),
     offset: int = Query(0, ge=0),
     current_user: User | None = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
@@ -408,13 +471,40 @@ async def list_results(
         offset=offset
     )
 
+    # Batch-load bib numbers and clubs for all results in 2 queries
+    user_ids = [r.user_id for r in results]
+    bib_map: dict[int, str | None] = {}
+    club_map: dict[int, object] = {}
+    if user_ids:
+        registrations = db.query(CompetitionRegistration).filter(
+            CompetitionRegistration.competition_id == competition_id,
+            CompetitionRegistration.user_id.in_(user_ids),
+        ).all()
+        bib_map = {reg.user_id: reg.bib_number for reg in registrations}
+
+        memberships = db.query(ClubMembership).options(
+            joinedload(ClubMembership.club)
+        ).filter(
+            ClubMembership.user_id.in_(user_ids),
+            ClubMembership.status == MembershipStatus.ACTIVE,
+        ).all()
+        club_map = {m.user_id: m.club for m in memberships}
+
     # Build response items
     items = []
     for r in results:
+        u = r.user
+        club = club_map.get(r.user_id)
         items.append(ResultListItem(
             id=r.id,
-            user=build_user_brief(db, r.user),
-            bib_number=get_bib_number(db, r.user_id, competition_id),
+            user=ResultUserBrief(
+                id=u.id,
+                username_display=u.username_display,
+                first_name=u.first_name,
+                last_name=u.last_name,
+                club=ClubBrief(id=club.id, name=club.name) if club else None,
+            ),
+            bib_number=bib_map.get(r.user_id),
             distance_id=r.distance_id,
             distance_name=r.distance.name if r.distance else None,
             competition_class=r.class_,
@@ -424,7 +514,7 @@ async def list_results(
             time_behind_leader=r.time_behind_leader,
             time_behind_distance_leader=r.time_behind_distance_leader,
             status=r.status,
-            has_splits=len(r.splits) > 0 if r.splits else False,
+            has_splits=bool(r.splits),
         ))
 
     # Get summaries

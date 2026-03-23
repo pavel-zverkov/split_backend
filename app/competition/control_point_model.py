@@ -25,7 +25,8 @@ class ControlPoint(Base):
 
     __table_args__ = (
         UniqueConstraint('distance_id', 'sequence', name='cp_sequence_unique'),
-        UniqueConstraint('distance_id', 'code', name='cp_code_unique'),
+        # NOTE: no uniqueness on (distance_id, code) — butterfly courses visit the same
+        # physical control more than once, so duplicate codes must be allowed.
     )
 
     # Relationships

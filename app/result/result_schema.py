@@ -83,6 +83,25 @@ class BulkSplitsResponse(BaseModel):
     total: int
 
 
+# ===== Athlete Index =====
+
+class AthleteIndexItem(BaseModel):
+    result_id: int
+    first_name: str
+    last_name: str | None = None
+    bib_number: str | None = None
+    competition_class: str | None = Field(None, alias='class')
+    distance_id: int | None = None
+    distance_name: str | None = None
+
+    model_config = {'populate_by_name': True}
+
+
+class AthleteIndexResponse(BaseModel):
+    athletes: list[AthleteIndexItem]
+    total: int
+
+
 # ===== User/Club Brief =====
 
 class ClubBrief(BaseModel):

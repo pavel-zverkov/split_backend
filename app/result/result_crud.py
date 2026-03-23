@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func
 
 from .result_model import Result
@@ -134,18 +134,23 @@ def get_bulk_splits(
     competition_id: int,
     competition_class: str | None = None,
     distance_id: int | None = None,
-) -> tuple[list[Result], dict[int, list[ResultSplit]], dict[int, dict[str, dict]], list[str]]:
+) -> tuple[list[Result], dict[int, list[ResultSplit]], dict[int, dict[int, dict]], list[str]]:
     """Get all results with splits for a competition in one pass.
 
     Returns:
         results: ordered list of Result objects
         splits_by_result: {result_id: [ResultSplit, ...]}
-        positions_map: {result_id: {control_point: {position, time_behind_best, cumulative_position, cumulative_time_behind_best}}}
-        control_points_ordered: ordered list of CP codes (union across all athletes)
+        positions_map: {result_id: {sequence: {position, time_behind_best, ...}}}
+            Keyed by split sequence (int) so butterfly courses with duplicate CP codes
+            are handled correctly.
+        control_points_ordered: ordered list of CP codes (union across all athletes,
+            preserving duplicates for butterfly courses)
     """
     from collections import defaultdict
 
-    q = db.query(Result).filter(Result.competition_id == competition_id)
+    q = db.query(Result).options(
+        joinedload(Result.user),
+    ).filter(Result.competition_id == competition_id)
     if competition_class:
         q = q.filter(Result.class_ == competition_class)
     if distance_id:
@@ -166,58 +171,106 @@ def get_bulk_splits(
     for split in all_splits:
         splits_by_result[split.result_id].append(split)
 
-    # Group by (class, control_point) and (distance_id, control_point) for position calculation
+    # Group by (class, control_point, sequence) and (distance_id, control_point, sequence).
+    # Including sequence in the key correctly separates butterfly visits to the same CP.
     cp_class_data: dict[tuple, list] = defaultdict(list)
     cp_dist_data: dict[tuple, list] = defaultdict(list)
     for split in all_splits:
         result = result_map[split.result_id]
         if result.status == ResultStatus.OK:
             entry = (split.result_id, split.split_time, split.cumulative_time)
-            cp_class_data[(result.class_, split.control_point)].append(entry)
+            cp_class_data[(result.class_, split.control_point, split.sequence)].append(entry)
             if result.distance_id is not None:
-                cp_dist_data[(result.distance_id, split.control_point)].append(entry)
+                cp_dist_data[(result.distance_id, split.control_point, split.sequence)].append(entry)
 
-    positions_map: dict[int, dict[str, dict]] = defaultdict(dict)
+    # positions_map keyed by sequence (not control_point) to support butterfly courses
+    positions_map: dict[int, dict[int, dict]] = defaultdict(dict)
 
-    for (cls, cp), entries in cp_class_data.items():
+    for (cls, cp, seq), entries in cp_class_data.items():
         by_split = sorted(entries, key=lambda x: x[1])
         best_split = by_split[0][1]
         for i, (rid, st, _) in enumerate(by_split, 1):
-            positions_map[rid].setdefault(cp, {})
-            positions_map[rid][cp]['position'] = i
-            positions_map[rid][cp]['time_behind_best'] = st - best_split
+            positions_map[rid].setdefault(seq, {})
+            positions_map[rid][seq]['position'] = i
+            positions_map[rid][seq]['time_behind_best'] = st - best_split
 
         by_cum = sorted(entries, key=lambda x: x[2])
         best_cum = by_cum[0][2]
         for i, (rid, _, ct) in enumerate(by_cum, 1):
-            positions_map[rid].setdefault(cp, {})
-            positions_map[rid][cp]['cumulative_position'] = i
-            positions_map[rid][cp]['cumulative_time_behind_best'] = ct - best_cum
+            positions_map[rid].setdefault(seq, {})
+            positions_map[rid][seq]['cumulative_position'] = i
+            positions_map[rid][seq]['cumulative_time_behind_best'] = ct - best_cum
 
-    for (dist_id, cp), entries in cp_dist_data.items():
+    for (dist_id, cp, seq), entries in cp_dist_data.items():
         by_split = sorted(entries, key=lambda x: x[1])
         best_split = by_split[0][1]
         for i, (rid, st, _) in enumerate(by_split, 1):
-            positions_map[rid].setdefault(cp, {})
-            positions_map[rid][cp]['position_in_distance'] = i
-            positions_map[rid][cp]['time_behind_best_in_distance'] = st - best_split
+            positions_map[rid].setdefault(seq, {})
+            positions_map[rid][seq]['position_in_distance'] = i
+            positions_map[rid][seq]['time_behind_best_in_distance'] = st - best_split
 
         by_cum = sorted(entries, key=lambda x: x[2])
         best_cum = by_cum[0][2]
         for i, (rid, _, ct) in enumerate(by_cum, 1):
-            positions_map[rid].setdefault(cp, {})
-            positions_map[rid][cp]['cumulative_position_in_distance'] = i
-            positions_map[rid][cp]['cumulative_time_behind_best_in_distance'] = ct - best_cum
+            positions_map[rid].setdefault(seq, {})
+            positions_map[rid][seq]['cumulative_position_in_distance'] = i
+            positions_map[rid][seq]['cumulative_time_behind_best_in_distance'] = ct - best_cum
 
-    # Build ordered CP list (union, preserving sequence order)
-    seen_cps: set[str] = set()
+    # Build ordered CP list preserving duplicate codes for butterfly courses.
+    # Deduplicate by (sequence, cp) so we get one entry per CP visit, in order.
+    seen_seq_cp: set[tuple] = set()
     cps_ordered: list[str] = []
     for split in sorted(all_splits, key=lambda s: s.sequence):
-        if split.control_point not in seen_cps:
+        key = (split.sequence, split.control_point)
+        if key not in seen_seq_cp:
             cps_ordered.append(split.control_point)
-            seen_cps.add(split.control_point)
+            seen_seq_cp.add(key)
 
     return results, dict(splits_by_result), dict(positions_map), cps_ordered
+
+
+# ===== Athlete Index =====
+
+def get_athlete_index(db: Session, competition_id: int) -> list[dict]:
+    """Minimal athlete list for cross-distance search. One query, no splits."""
+    from ..competition.competition_registration_model import CompetitionRegistration
+    from ..competition.distance_model import Distance
+    from ..user.user_model import User
+
+    rows = (
+        db.query(
+            Result.id,
+            User.first_name,
+            User.last_name,
+            CompetitionRegistration.bib_number,
+            Result.class_,
+            Result.distance_id,
+            Distance.name.label('distance_name'),
+        )
+        .join(User, User.id == Result.user_id)
+        .outerjoin(
+            CompetitionRegistration,
+            (CompetitionRegistration.user_id == Result.user_id) &
+            (CompetitionRegistration.competition_id == Result.competition_id),
+        )
+        .outerjoin(Distance, Distance.id == Result.distance_id)
+        .filter(Result.competition_id == competition_id)
+        .order_by(Result.id)
+        .all()
+    )
+
+    return [
+        {
+            'result_id': r[0],
+            'first_name': r[1],
+            'last_name': r[2],
+            'bib_number': r[3],
+            'class': r[4],
+            'distance_id': r[5],
+            'distance_name': r[6],
+        }
+        for r in rows
+    ]
 
 
 # ===== Queries =====
@@ -231,7 +284,11 @@ def get_results(
     limit: int = 20,
     offset: int = 0
 ) -> tuple[list[Result], int]:
-    q = db.query(Result).filter(Result.competition_id == competition_id)
+    q = db.query(Result).options(
+        joinedload(Result.user),
+        joinedload(Result.distance),
+        selectinload(Result.splits),
+    ).filter(Result.competition_id == competition_id)
 
     if competition_class:
         q = q.filter(Result.class_ == competition_class)
@@ -241,7 +298,13 @@ def get_results(
         q = q.filter(Result.status == status)
 
     total = q.count()
-    results = q.order_by(Result.position.asc().nullslast()).offset(offset).limit(limit).all()
+    if distance_id and not competition_class:
+        order = Result.position_in_distance.asc().nullslast()
+    elif competition_class:
+        order = Result.position.asc().nullslast()
+    else:
+        order = Result.position_in_distance.asc().nullslast()
+    results = q.order_by(order).offset(offset).limit(limit).all()
     return results, total
 
 
