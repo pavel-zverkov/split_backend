@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import datetime, date
 
 from pydantic import BaseModel
 
 from ..enums.privacy import Privacy
 from ..enums.club_role import ClubRole
 from ..enums.membership_status import MembershipStatus
+from ..enums.gender import Gender
 
 
 class ClubCreate(BaseModel):
@@ -88,6 +89,8 @@ class MemberUserBrief(BaseModel):
     first_name: str
     last_name: str | None = None
     logo: str | None = None
+    birthday: date | None = None
+    gender: Gender | None = None
 
     model_config = {'from_attributes': True}
 

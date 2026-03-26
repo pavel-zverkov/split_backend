@@ -2,7 +2,7 @@ from datetime import date
 import secrets
 import string
 
-from sqlalchemy import or_, func
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from .user_model import User
@@ -54,32 +54,19 @@ def search_users(
         q = q.filter(User.account_type == account_type)
 
     if query:
-        # Combine exact substring match (ILIKE) with fuzzy trigram search
-        # word_similarity matches against words within compound strings like 'pavel_zverkov'
-        search_pattern = f'%{query}%'
-        similarity_threshold = 0.2
-        q = q.filter(
-            or_(
-                # Exact substring matches
-                User.username.ilike(search_pattern),
-                User.username_display.ilike(search_pattern),
-                User.first_name.ilike(search_pattern),
-                User.last_name.ilike(search_pattern),
-                # Fuzzy matches (handles typos like 'pvael' -> 'pavel')
-                func.word_similarity(query, User.username) >= similarity_threshold,
-                func.word_similarity(query, User.username_display) >= similarity_threshold,
-                func.word_similarity(query, User.first_name) >= similarity_threshold,
-                func.word_similarity(query, User.last_name) >= similarity_threshold,
-            )
-        ).order_by(
-            # Order by best match first
-            func.greatest(
-                func.word_similarity(query, User.username),
-                func.word_similarity(query, User.username_display),
-                func.word_similarity(query, User.first_name),
-                func.coalesce(func.word_similarity(query, User.last_name), 0),
-            ).desc()
-        )
+        # Split query into words so "Павел Зверков" matches first_name="Зверков" last_name="Павел"
+        words = query.strip().split()
+        conditions = []
+        for word in words:
+            pattern = f'%{word}%'
+            conditions.append(or_(
+                User.username.ilike(pattern),
+                User.username_display.ilike(pattern),
+                User.first_name.ilike(pattern),
+                User.last_name.ilike(pattern),
+            ))
+        # All words must match at least one field
+        q = q.filter(*conditions)
 
     total = q.count()
     users = q.offset(offset).limit(limit).all()

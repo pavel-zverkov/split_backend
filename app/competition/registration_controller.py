@@ -312,8 +312,12 @@ async def list_registrations(
         offset=offset
     )
 
+    user_ids = [reg.user.id for reg in registrations]
+    clubs_map = club_crud.get_users_clubs_batch(db, user_ids)
+
     items = []
     for reg in registrations:
+        user_clubs = clubs_map.get(reg.user.id, [])
         items.append(RegistrationItem(
             id=reg.id,
             user=RegistrationUserBrief(
@@ -322,6 +326,8 @@ async def list_registrations(
                 first_name=reg.user.first_name,
                 last_name=reg.user.last_name,
                 logo=reg.user.logo,
+                birthday=str(reg.user.birthday) if reg.user.birthday else None,
+                clubs=[ClubBrief(id=c.id, name=c.name) for c in user_clubs],
             ),
             competition_class=reg.class_,
             bib_number=reg.bib_number,

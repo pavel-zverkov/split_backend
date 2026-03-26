@@ -56,6 +56,28 @@ async def create_club(
     )
 
 
+@club_router.get('/my-managed', response_model=ClubListResponse)
+async def get_my_managed_clubs(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get clubs where the current user is owner or coach."""
+    clubs = club_crud.get_managed_clubs(db, current_user.id)
+    items = [
+        ClubListItem(
+            id=club.id,
+            name=club.name,
+            logo=club.logo,
+            location=club.location,
+            privacy=club.privacy,
+            members_count=club_crud.get_members_count(db, club.id),
+            membership_status=MembershipStatus.ACTIVE,
+        )
+        for club in clubs
+    ]
+    return ClubListResponse(clubs=items, total=len(items), limit=len(items), offset=0)
+
+
 @club_router.get('/{club_id}', response_model=ClubDetailResponse)
 async def get_club(
     club_id: int,

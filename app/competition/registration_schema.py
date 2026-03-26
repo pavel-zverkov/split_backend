@@ -24,12 +24,21 @@ class RegistrationResponse(BaseModel):
     model_config = {'from_attributes': True, 'populate_by_name': True}
 
 
+class ClubBrief(BaseModel):
+    id: int
+    name: str
+
+    model_config = {'from_attributes': True}
+
+
 class RegistrationUserBrief(BaseModel):
     id: int
     username_display: str
     first_name: str
     last_name: str | None = None
     logo: str | None = None
+    birthday: str | None = None
+    clubs: list[ClubBrief] = []
 
     model_config = {'from_attributes': True}
 
@@ -84,13 +93,6 @@ class BatchUpdateResponse(BaseModel):
 
 
 # Start list schemas
-class ClubBrief(BaseModel):
-    id: int
-    name: str
-
-    model_config = {'from_attributes': True}
-
-
 class StartListUserBrief(BaseModel):
     id: int
     username_display: str

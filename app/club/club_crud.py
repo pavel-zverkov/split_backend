@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import or_, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from .club_model import Club
 from .club_membership_model import ClubMembership
@@ -95,6 +95,23 @@ def is_club_admin(db: Session, user_id: int, club_id: int) -> bool:
     if not membership or membership.status != MembershipStatus.ACTIVE:
         return False
     return membership.role in [ClubRole.OWNER, ClubRole.COACH]
+
+
+def get_managed_clubs(db: Session, user_id: int) -> list[Club]:
+    """Get clubs where user is owner or coach with active membership."""
+    memberships = (
+        db.query(ClubMembership)
+        .filter(
+            ClubMembership.user_id == user_id,
+            ClubMembership.role.in_([ClubRole.OWNER, ClubRole.COACH]),
+            ClubMembership.status == MembershipStatus.ACTIVE,
+        )
+        .all()
+    )
+    club_ids = [m.club_id for m in memberships]
+    if not club_ids:
+        return []
+    return db.query(Club).filter(Club.id.in_(club_ids)).all()
 
 
 def is_club_owner(db: Session, user_id: int, club_id: int) -> bool:
@@ -284,6 +301,43 @@ def get_user_active_club(db: Session, user_id: int) -> Club | None:
     if membership:
         return membership.club
     return None
+
+
+def get_users_clubs_batch(db: Session, user_ids: list[int]) -> dict[int, list[Club]]:
+    """Fetch all active clubs for multiple users in two queries. Returns {user_id: [Club, ...]}."""
+    if not user_ids:
+        return {}
+
+    result: dict[int, list[Club]] = {uid: [] for uid in user_ids}
+
+    # Active memberships
+    memberships = (
+        db.query(ClubMembership)
+        .options(joinedload(ClubMembership.club))
+        .filter(
+            ClubMembership.user_id.in_(user_ids),
+            ClubMembership.status == MembershipStatus.ACTIVE,
+        )
+        .all()
+    )
+    seen: dict[int, set[int]] = {uid: set() for uid in user_ids}
+    for m in memberships:
+        if m.club_id not in seen[m.user_id]:
+            result[m.user_id].append(m.club)
+            seen[m.user_id].add(m.club_id)
+
+    # Owned clubs via Club.owner_id (covers legacy / missing membership rows)
+    owned_clubs = (
+        db.query(Club)
+        .filter(Club.owner_id.in_(user_ids))
+        .all()
+    )
+    for club in owned_clubs:
+        if club.id not in seen[club.owner_id]:
+            result[club.owner_id].append(club)
+            seen[club.owner_id].add(club.id)
+
+    return result
 
 
 def get_active_members(db: Session, club_id: int) -> list[ClubMembership]:

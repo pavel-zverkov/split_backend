@@ -194,3 +194,40 @@ A sports service with capabilities for both personal and community purposes.
 | 14 | Event Feed | 1 | [14-event-feed.md](./processes/14-event-feed.md) |
 | 15 | Distance Management | 6 | `POST/GET /api/competitions/{id}/distances`, `GET/PATCH/DELETE /api/distances/{id}`, `PUT /api/distances/{id}/control-points` |
 | 16 | Event Total Results | 9 | `POST/GET /api/events/{id}/total-configs`, `GET/PATCH/DELETE /api/events/{id}/total-configs/{config_id}`, `POST .../recalculate`, `GET .../results[/me][/{result_id}]` |
+
+---
+
+## Backlog Issues
+
+### Issue 1: User Profile Field Validation
+
+**Problem:** User fields (first name, last name, gender, birthday, etc.) are not validated against format or content rules. Invalid or nonsensical data can be saved without error.
+
+**Scope:**
+- First name / last name: min/max length, allowed characters (letters, hyphens, spaces; Unicode for Cyrillic), no digits or special chars
+- Birthday: must be a valid date, reasonable age range (e.g. 1900–today), not in the future
+- Gender: enum constraint (already enforced by DB, but should return a clean 422 with a descriptive message)
+- Username: length, allowed characters (alphanumeric + underscore), uniqueness (already enforced)
+- Ghost user creation: same rules apply since ghost data feeds into competition results
+
+**Affected endpoints:** `PATCH /api/users/me`, `POST /api/users/ghost`, registration forms on the frontend
+
+**Notes:** Use Pydantic validators (`@field_validator`) on request schemas. Frontend should mirror the same rules with inline error display.
+
+---
+
+### Issue 2: Custom Registration Fields per Competition
+
+**Problem:** Competition organizers currently cannot ask athletes for sport-specific information beyond class, bib, and start time. No support for qualifications, ranking, emergency contact, team name, shirt size, or other event-specific fields.
+
+**Scope:**
+- Organizer defines a list of custom fields on the competition (name, type: text/number/select/boolean, required flag, options list for select)
+- Athletes fill in these fields when registering
+- Responses stored per-registration, visible to organizers in the registration list
+- Suggested built-in fields: sport qualification/rank (link to `UserQualification`), club/team name, emergency contact
+
+**Affected entities:** `Competition` (add `registration_fields: JSONB`), `CompetitionRegistration` (add `extra_data: JSONB`)
+
+**Affected endpoints:** `GET /api/competitions/{id}` (expose fields to registrants), `POST /api/competitions/{id}/registrations` (accept + validate extra_data), `GET /api/competitions/{id}/registrations` (return extra_data per item)
+
+**Notes:** Field schema in `registration_fields` should define key, label, type, required, and options. Validation of `extra_data` should be done server-side against the field definitions at registration time.
