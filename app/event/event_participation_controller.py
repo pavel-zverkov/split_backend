@@ -388,7 +388,7 @@ def _build_batch_response(results):
 async def list_participants(
     event_id: int,
     participant_status: ParticipationStatus | None = Query(None, alias='status'),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     current_user: User | None = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
@@ -443,7 +443,7 @@ async def list_requests(
     event_id: int,
     request_status: ParticipationStatus = Query(ParticipationStatus.PENDING, alias='status'),
     role: EventRole | None = Query(None),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)

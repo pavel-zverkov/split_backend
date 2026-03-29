@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..enums.event_status import EventStatus
 from ..enums.event_format import EventFormat
@@ -422,7 +422,12 @@ def get_participants(
         q = q.filter(EventParticipation.status == status)
 
     total = q.count()
-    participants = q.offset(offset).limit(limit).all()
+    participants = (
+        q.options(joinedload(EventParticipation.user))
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
     return participants, total
 
 
@@ -444,7 +449,13 @@ def get_participation_requests(
         q = q.filter(EventParticipation.role == role)
 
     total = q.count()
-    requests = q.order_by(EventParticipation.created_at.desc()).offset(offset).limit(limit).all()
+    requests = (
+        q.options(joinedload(EventParticipation.user))
+        .order_by(EventParticipation.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
     return requests, total
 
 

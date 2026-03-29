@@ -282,7 +282,7 @@ async def list_registrations(
     competition_id: int,
     competition_class: str | None = Query(None, alias='class'),
     registration_status: RegistrationStatus | None = Query(None, alias='status'),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     current_user: User | None = Depends(get_current_user_optional),
     db: Session = Depends(get_db)

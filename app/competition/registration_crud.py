@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..enums.registration_status import RegistrationStatus
 from ..enums.competition_status import CompetitionStatus
@@ -95,7 +95,13 @@ def get_registrations(
         q = q.filter(CompetitionRegistration.status == status)
 
     total = q.count()
-    registrations = q.order_by(CompetitionRegistration.created_at.desc()).offset(offset).limit(limit).all()
+    registrations = (
+        q.options(joinedload(CompetitionRegistration.user))
+        .order_by(CompetitionRegistration.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
     return registrations, total
 
 

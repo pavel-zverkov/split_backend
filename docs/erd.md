@@ -19,7 +19,11 @@ erDiagram
 
     Event ||--o{ Competition : "contains"
     Event ||--o{ EventInvite : "has_invites"
+    Event ||--o{ EventTotalConfig : "has_configs"
+    EventTotalConfig ||--o{ EventTotalResult : "produces"
     Competition ||--o{ Artifact : "has_files"
+    Competition ||--o{ Distance : "has_distances"
+    Distance ||--o{ ControlPoint : "has_control_points"
 
     %% === RELATION TABLES (many-to-many) ===
     User ||--o{ UserFollow : "follows"
@@ -122,14 +126,53 @@ erDiagram
         string name
         string description
         date date
+        datetime start_time
         enum sport_kind
         enum start_format
-        array class_list
-        array control_points_list
-        int distance_meters
         string location
         enum status "planned/registration_open/registration_closed/in_progress/finished/cancelled"
         datetime created_at
+    }
+
+    Distance {
+        int id PK
+        int competition_id FK
+        string name
+        int distance_meters
+        int climb_meters
+        array classes
+        datetime created_at
+    }
+
+    ControlPoint {
+        int id PK
+        int distance_id FK
+        string code
+        int sequence
+        enum type "start/control/finish"
+    }
+
+    EventTotalConfig {
+        int id PK
+        int event_id FK
+        string name
+        jsonb rules
+        bool auto_calculate
+        datetime created_at
+    }
+
+    EventTotalResult {
+        int id PK
+        int config_id FK
+        int user_id FK
+        string class
+        float total_value
+        int position
+        int position_overall
+        int stages_counted
+        int stages_total
+        enum status "ok/incomplete/dsq"
+        datetime calculated_at
     }
 
     Workout {
@@ -247,7 +290,7 @@ erDiagram
     ResultSplit {
         int id PK
         int result_id FK
-        string control_point
+        int control_point_id FK "nullable"
         int sequence
         int cumulative_time
         int split_time

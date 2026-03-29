@@ -310,7 +310,7 @@ By default, all event team members are assigned to all competitions. This can be
 }
 ```
 
-**Note:** User must be an event team member first (EventParticipation with team role).
+**Note:** By default the controller checks that the user is already an event team member (`is_event_team_member` in `competition_controller.py`). This constraint is **application-level only** — no DB constraint enforces it. It can be relaxed to allow assigning any user directly to a competition team (e.g. for federation cups where each competition has a different local organizing team).
 
 **Flow:**
 1. Verify user is event team member

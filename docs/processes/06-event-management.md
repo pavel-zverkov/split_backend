@@ -55,13 +55,15 @@ draft ↔ planned ──► in_progress ──► finished
   └────────┴─────────────┴──► cancelled
 ```
 
-| Status | Description | Visible |
-|--------|-------------|---------|
-| `draft` | Event created, not visible to public | No |
-| `planned` | Visible (default). Requires at least one competition to transition from draft. | Yes |
-| `in_progress` | Event running | Yes |
-| `finished` | Completed. Auto-finishes/cancels all child competitions. | Yes |
-| `cancelled` | Cancelled | Yes |
+| Status | Description | Visible | Frontend label |
+|--------|-------------|---------|----------------|
+| `draft` | Event created, not visible to public | No | Draft |
+| `planned` | Visible (default). Requires at least one competition to transition from draft. | Yes | **Upcoming** |
+| `in_progress` | Event running | Yes | In Progress |
+| `finished` | Completed. Auto-finishes/cancels all child competitions. | Yes | Finished |
+| `cancelled` | Cancelled | Yes | Cancelled |
+
+*Note: The backend enum value is `planned`. The frontend displays it as **"Upcoming"** for clarity.*
 
 ### Single vs Multi-Stage Events
 
