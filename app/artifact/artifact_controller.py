@@ -133,6 +133,15 @@ def get_presigned_url(path: str) -> str:
     return minio_client.presigned_get_object(BUCKET_NAME, path, expires=timedelta(hours=1))
 
 
+def pdf_to_jpeg(content: bytes, dpi: int = 300) -> bytes:
+    import fitz
+    doc = fitz.open(stream=content, filetype='pdf')
+    page = doc[0]
+    mat = fitz.Matrix(dpi / 72, dpi / 72)
+    pix = page.get_pixmap(matrix=mat, alpha=False)
+    return pix.tobytes('jpeg', jpg_quality=88)
+
+
 def build_artifact_list_item(artifact, user: User) -> ArtifactListItem:
     return ArtifactListItem(
         id=artifact.id,
@@ -140,6 +149,7 @@ def build_artifact_list_item(artifact, user: User) -> ArtifactListItem:
         file_name=artifact.file_name,
         file_size=artifact.file_size,
         mime_type=artifact.mime_type,
+        distance_id=artifact.distance_id,
         tags=artifact.tags,
         uploaded_by=ArtifactUserBrief(
             id=user.id,
@@ -151,55 +161,66 @@ def build_artifact_list_item(artifact, user: User) -> ArtifactListItem:
 
 # ===== 10.1 Upload Competition Artifact =====
 
+JPEG_CONVERTIBLE_KINDS = {ArtifactKind.MAP, ArtifactKind.COURSE}
+
+
 @artifact_router.post('/api/competitions/{competition_id}/artifacts', response_model=ArtifactResponse, status_code=status.HTTP_201_CREATED)
 async def upload_competition_artifact(
     competition_id: int,
     file: Annotated[UploadFile, File()],
     kind: Annotated[ArtifactKind, Form()],
     tags: Annotated[str | None, Form()] = None,
+    distance_id: Annotated[int | None, Form()] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Upload a competition artifact (organizer/secretary only)."""
+    """Upload a competition artifact (organizer/secretary only). PDF maps are auto-converted to JPEG."""
     competition = get_competition_or_404(db, competition_id)
 
-    # Check permissions
     if not artifact_crud.can_upload_competition_artifact(db, current_user.id, competition.event_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail='Only organizer or secretary can upload artifacts'
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only organizer or secretary can upload artifacts')
 
-    # Validate artifact kind
     if kind not in COMPETITION_ARTIFACT_KINDS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f'Invalid kind for competition artifact. Allowed: {", ".join(k.value for k in COMPETITION_ARTIFACT_KINDS)}'
         )
 
-    # Validate file
     extension, mime_type = validate_file(file, kind)
     validation = FILE_VALIDATION[kind]
 
-    # Build file path
-    file_path = f'events/{competition.event_id}/{competition_id}/{kind.value}/{file.filename}'
+    content = await file.read()
+    if len(content) > validation['max_size']:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'File too large. Maximum size: {validation["max_size"] // (1024*1024)} MB')
 
-    # Upload to MinIO
-    file_size = await upload_to_minio(file, file_path, validation['max_size'])
+    # Convert PDF → JPEG for map/course artifacts
+    original_filename = file.filename or f'{kind.value}.bin'
+    if kind in JPEG_CONVERTIBLE_KINDS and extension == 'pdf':
+        content = pdf_to_jpeg(content)
+        original_filename = original_filename.rsplit('.', 1)[0] + '.jpg'
+        mime_type = 'image/jpeg'
+        extension = 'jpg'
 
-    # Parse tags
+    file_path = f'events/{competition.event_id}/{competition_id}/{kind.value}/{original_filename}'
+
+    minio_client = get_minio_client()
+    if not minio_client.bucket_exists(BUCKET_NAME):
+        minio_client.make_bucket(BUCKET_NAME)
+    minio_client.put_object(BUCKET_NAME, file_path, BytesIO(content), len(content))
+    file_size = len(content)
+
     tags_list = [t.strip() for t in tags.split(',')] if tags else None
 
-    # Create artifact record
     artifact = artifact_crud.create_artifact(
         db,
         user_id=current_user.id,
         kind=kind,
         file_path=file_path,
-        file_name=file.filename,
+        file_name=original_filename,
         file_size=file_size,
         mime_type=mime_type,
         competition_id=competition_id,
+        distance_id=distance_id,
         tags=tags_list,
     )
 
@@ -207,6 +228,7 @@ async def upload_competition_artifact(
         id=artifact.id,
         competition_id=artifact.competition_id,
         workout_id=artifact.workout_id,
+        distance_id=artifact.distance_id,
         user_id=artifact.user_id,
         kind=artifact.kind,
         file_path=artifact.file_path,
@@ -353,6 +375,8 @@ async def update_artifact(
         db, artifact,
         tags=data.tags,
         kind=data.kind,
+        distance_id=data.distance_id,
+        clear_distance=data.clear_distance,
     )
 
     return ArtifactResponse(
@@ -429,9 +453,17 @@ async def download_artifact(
                 detail='Private workout artifact'
             )
 
-    # Redirect to presigned URL
-    download_url = get_presigned_url(artifact.file_path)
-    return RedirectResponse(url=download_url, status_code=status.HTTP_302_FOUND)
+    # Stream file directly from MinIO with correct content-type and inline disposition.
+    # This avoids cross-origin issues and content-type loss that occur with presigned-URL redirects.
+    from urllib.parse import quote
+    minio_client = get_minio_client()
+    response = minio_client.get_object(BUCKET_NAME, artifact.file_path)
+    mime_type = artifact.mime_type or 'application/octet-stream'
+    encoded_name = quote(artifact.file_name, safe='')
+    headers = {
+        'Content-Disposition': f"inline; filename*=UTF-8''{encoded_name}",
+    }
+    return StreamingResponse(response, media_type=mime_type, headers=headers)
 
 
 # ===== 10.7 Upload Workout Artifact =====

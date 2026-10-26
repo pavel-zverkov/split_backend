@@ -36,6 +36,7 @@ def create_artifact(
     mime_type: str,
     competition_id: int | None = None,
     workout_id: int | None = None,
+    distance_id: int | None = None,
     tags: list[str] | None = None
 ) -> Artifact:
     artifact = Artifact(
@@ -47,6 +48,7 @@ def create_artifact(
         mime_type=mime_type,
         competition_id=competition_id,
         workout_id=workout_id,
+        distance_id=distance_id,
         tags=tags,
     )
     db.add(artifact)
@@ -59,12 +61,30 @@ def update_artifact(
     db: Session,
     artifact: Artifact,
     tags: list[str] | None = None,
-    kind: ArtifactKind | None = None
+    kind: ArtifactKind | None = None,
+    distance_id: int | None = None,
+    clear_distance: bool = False,
+    file_path: str | None = None,
+    file_name: str | None = None,
+    file_size: int | None = None,
+    mime_type: str | None = None,
 ) -> Artifact:
     if tags is not None:
         artifact.tags = tags
     if kind is not None:
         artifact.kind = kind
+    if clear_distance:
+        artifact.distance_id = None
+    elif distance_id is not None:
+        artifact.distance_id = distance_id
+    if file_path is not None:
+        artifact.file_path = file_path
+    if file_name is not None:
+        artifact.file_name = file_name
+    if file_size is not None:
+        artifact.file_size = file_size
+    if mime_type is not None:
+        artifact.mime_type = mime_type
     db.commit()
     db.refresh(artifact)
     return artifact
@@ -80,6 +100,7 @@ def get_competition_artifacts(
     competition_id: int,
     kind: ArtifactKind | None = None,
     tags: list[str] | None = None,
+    distance_id: int | None = None,
     limit: int = 20,
     offset: int = 0
 ) -> tuple[list[Artifact], int]:
@@ -88,8 +109,9 @@ def get_competition_artifacts(
     if kind:
         q = q.filter(Artifact.kind == kind)
     if tags:
-        # Filter by any of the provided tags (PostgreSQL ARRAY overlap)
         q = q.filter(Artifact.tags.overlap(tags))
+    if distance_id is not None:
+        q = q.filter(Artifact.distance_id == distance_id)
 
     total = q.count()
     artifacts = q.order_by(Artifact.created_at.desc()).offset(offset).limit(limit).all()

@@ -18,6 +18,7 @@ class Artifact(Base):
     id = Column(Integer, primary_key=True, index=True)
     competition_id = Column(Integer, ForeignKey('competitions.id'), nullable=True)
     workout_id = Column(Integer, ForeignKey('workouts.id'), nullable=True)
+    distance_id = Column(Integer, ForeignKey('distances.id'), nullable=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     kind = Column(Enum(ArtifactKind), nullable=False)
     file_path = Column(String, nullable=False)

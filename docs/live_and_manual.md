@@ -1,0 +1,21 @@
+⏺ On live results — the difference I see:                                                                                                                                                                             
+                                                                                                                                                                                                                      
+  - biathlonworld.com — TV-style, mass/pursuit start, continuous athlete tracking, shooting results integrated, dramatic real-time leaderboard flipping as athletes finish                                            
+  - orgeo.ru/live — orienteering model, separated/free starts, data arrives as athletes punch discrete checkpoints (SPORTident/Emit), estimated intermediate positions based on partial splits, more "data feed" style
+   than "drama" style                                                                                                                                                                                                 
+                                                                                                                                                                                                                    
+  The core difference: biathlon is position-continuous, orienteering is checkpoint-discrete. Your platform needs to handle both.                                                                                      
+                                                                                                                                                                                                                    
+  ---                                                                                                                                                                                                                 
+  Questions for live results:                                                                                                                                                                                       
+                             
+  1. What's the primary data source — manual operator input during the race, automatic timing system integration (SPORTident/Emit), or both?
+  2. Should live results be a separate public URL (like orgeo does — shareable link for spectators without an account)?                                                                                               
+  3. For separated/free starts — do you want to show estimated positions between checkpoints (like "athlete X is currently P3 based on splits so far")?                                                               
+                                                                                                                                                                                                                      
+  ---                                                                                                                                                                                                                 
+  Questions for manual competition providing:                                                                                                                                                                         
+                                                                                                                                                                                                                    
+  1. What do you mean by "providing" — is this about running the competition on race day (assigning bibs, managing start, entering results as they come in), or something broader?
+  2. Is the target user the organizer/secretary at the venue, or an operator at each control point?                                                                                                                   
+  3. Does "manual" mean no electronic timing system — results entered by hand?  

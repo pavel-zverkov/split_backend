@@ -19,6 +19,8 @@ class ArtifactUserBrief(BaseModel):
 class ArtifactUpdate(BaseModel):
     tags: list[str] | None = None
     kind: ArtifactKind | None = None
+    distance_id: int | None = None
+    clear_distance: bool = False
 
 
 # ===== Response Schemas =====
@@ -27,6 +29,7 @@ class ArtifactResponse(BaseModel):
     id: int
     competition_id: int | None = None
     workout_id: int | None = None
+    distance_id: int | None = None
     user_id: int
     kind: ArtifactKind
     file_path: str
@@ -45,6 +48,7 @@ class ArtifactListItem(BaseModel):
     file_name: str
     file_size: int
     mime_type: str
+    distance_id: int | None = None
     tags: list[str] | None = None
     uploaded_by: ArtifactUserBrief
     created_at: datetime
@@ -56,6 +60,7 @@ class ArtifactDetailResponse(BaseModel):
     id: int
     competition_id: int | None = None
     workout_id: int | None = None
+    distance_id: int | None = None
     kind: ArtifactKind
     file_path: str
     file_name: str
